@@ -1,0 +1,307 @@
+---
+import {
+  computeMinutesPlayed,
+  formatMinutes,
+  MATCH_DURATION_MINUTES,
+  MAX_GOALS_PER_MATCH,
+  matchEntryField,
+  type MatchHistoryEntry,
+} from '../../lib/admin-player-history';
+
+export interface SquadOption {
+  id: number;
+  name: string;
+  shirt_number: number | null;
+}
+
+interface Props {
+  entry: MatchHistoryEntry;
+  squad: SquadOption[];
+  playerId: number;
+}
+
+const { entry, squad, playerId } = Astro.props;
+const isSubbedIn = entry.status === 'subbed_in';
+const isBenched = entry.status === 'benched';
+const isSubbedOff = entry.status === 'subbed_off';
+const isNotNominated = entry.status === 'not_nominated';
+const showSubMinute = isSubbedIn || isSubbedOff;
+const replacements = squad.filter((player) => player.id !== playerId);
+// Die Felder gehören per form-Attribut zur zentralen Profilsammel-Form und
+// werden über deren Speicher-Button zusammen mit dem Profil abgeschickt.
+const field = (name: string) => matchEntryField(entry.match.id, name);
+// Spielminuten werden nicht eingegeben, sondern aus Status und Wechselminute
+// berechnet und nur angezeigt.
+const minutesPlayed = computeMinutesPlayed(entry.status, entry.subMinute);
+---
+
+<div
+  class="match-entry-form"
+  data-match-entry-form
+  data-match-duration={MATCH_DURATION_MINUTES}
+>
+  <div class="match-entry-checks">
+    <label class="check-field">
+      <span>
+        <input
+          type="checkbox"
+          name={field('status_subbed_in')}
+          form="player-profile-form"
+          checked={isSubbedIn}
+        /> Eingewechselt
+      </span>
+    </label>
+    <label class="check-field">
+      <span>
+        <input
+          type="checkbox"
+          name={field('status_benched')}
+          form="player-profile-form"
+          checked={isBenched}
+        /> Bank
+      </span>
+    </label>
+    <label class="check-field">
+      <span>
+        <input
+          type="checkbox"
+          name={field('status_subbed_off')}
+          form="player-profile-form"
+          checked={isSubbedOff}
+        /> Ausgewechselt
+      </span>
+    </label>
+    <label class="check-field">
+      <span>
+        <input
+          type="checkbox"
+          name={field('status_not_nominated')}
+          form="player-profile-form"
+          checked={isNotNominated}
+        /> Nicht nominiert
+      </span>
+    </label>
+  </div>
+  <div class="match-entry-fields">
+    <label class="field match-entry-rating">
+      <span>Note</span>
+      <input
+        name={field('rating')}
+        form="player-profile-form"
+        type="text"
+        value={entry.rating ?? ''}
+        maxlength="20"
+        placeholder="z. B. 8,5"
+      />
+    </label>
+    <label class="field match-entry-goals">
+      <span>Tore</span>
+      <input
+        name={field('goals')}
+        form="player-profile-form"
+        type="number"
+        min="0"
+        max={MAX_GOALS_PER_MATCH}
+        step="1"
+        value={entry.goals}
+      />
+    </label>
+    <label class="field match-entry-assists">
+      <span>Vorlagen</span>
+      <input
+        name={field('assists')}
+        form="player-profile-form"
+        type="number"
+        min="0"
+        max={MAX_GOALS_PER_MATCH}
+        step="1"
+        value={entry.assists}
+      />
+    </label>
+    <div class="field match-entry-minutes">
+      <span>Spielminuten <small>(berechnet)</small></span>
+      <span class="match-entry-minutes-value" data-minutes-output
+        >{minutesPlayed !== null ? formatMinutes(minutesPlayed) : '—'}</span
+      >
+    </div>
+    <label class="field match-entry-sub" data-sub-field hidden={!showSubMinute}>
+      <span data-sub-label
+        >{isSubbedOff ? 'Auswechselminute' : 'Einwechselminute'}</span
+      >
+      <input
+        name={field('sub_minute')}
+        form="player-profile-form"
+        type="number"
+        min="1"
+        max="120"
+        step="1"
+        value={entry.subMinute ?? ''}
+        placeholder="z. B. 67"
+      />
+    </label>
+    <label
+      class="field match-entry-replacement"
+      data-replacement-field
+      hidden={!isSubbedOff}
+    >
+      <span>Einwechselspieler</span>
+      <select name={field('substituted_by')} form="player-profile-form">
+        <option value="">Kader wählen …</option>
+        {
+          replacements.map((player) => (
+            <option
+              value={player.id}
+              selected={entry.substitutedBy === player.id}
+            >
+              {player.shirt_number ? `#${player.shirt_number} ` : ''}
+              {player.name}
+            </option>
+          ))
+        }
+      </select>
+    </label>
+    <label class="field match-entry-note">
+      <span>Notiz</span>
+      <input
+        name={field('note')}
+        form="player-profile-form"
+        type="text"
+        value={entry.note ?? ''}
+        maxlength="500"
+        placeholder="Kurzer Kommentar …"
+      />
+    </label>
+  </div>
+</div>
+
+<script>
+  // Pro Verlaufseintrag steuern die Status-Haken Sichtbarkeit und
+  // Editierbarkeit: „Eingewechselt“ blendet die Einwechselminute ein,
+  // „Ausgewechselt“ die Auswechselminute plus Einwechselspieler, „Bank“
+  // ergibt 0 Spielminuten, „Nicht nominiert“ sperrt die Eingabefelder,
+  // lässt die Status-Haken aber klickbar, damit der Modus direkt über eine
+  // andere Option beendet werden kann
+  // (deaktivierte Felder werden nicht abgeschickt).
+  // Die Spielminuten werden live mitberechnet und nur angezeigt.
+  // Die Feldnamen sind pro Spiel namensraumiert („match_<id>_<feld>“).
+  document
+    .querySelectorAll<HTMLElement>('[data-match-entry-form]')
+    .forEach((form) => {
+      const matchDuration = Number(form.dataset.matchDuration) || 90;
+      const subbedIn = form.querySelector<HTMLInputElement>(
+        'input[name$="_status_subbed_in"]',
+      );
+      const benched = form.querySelector<HTMLInputElement>(
+        'input[name$="_status_benched"]',
+      );
+      const subbedOff = form.querySelector<HTMLInputElement>(
+        'input[name$="_status_subbed_off"]',
+      );
+      const notNominated = form.querySelector<HTMLInputElement>(
+        'input[name$="_status_not_nominated"]',
+      );
+      const rating = form.querySelector<HTMLInputElement>(
+        'input[name$="_rating"]',
+      );
+      const goals = form.querySelector<HTMLInputElement>(
+        'input[name$="_goals"]',
+      );
+      const assists = form.querySelector<HTMLInputElement>(
+        'input[name$="_assists"]',
+      );
+      const minutesOut = form.querySelector<HTMLElement>(
+        '[data-minutes-output]',
+      );
+      const subField = form.querySelector<HTMLElement>('[data-sub-field]');
+      const subLabel = form.querySelector<HTMLElement>('[data-sub-label]');
+      const subInput = form.querySelector<HTMLInputElement>(
+        'input[name$="_sub_minute"]',
+      );
+      const replacementField = form.querySelector<HTMLElement>(
+        '[data-replacement-field]',
+      );
+      const replacement = form.querySelector<HTMLSelectElement>(
+        'select[name$="_substituted_by"]',
+      );
+      const note = form.querySelector<HTMLInputElement>('input[name$="_note"]');
+      if (
+        !subbedIn ||
+        !benched ||
+        !subbedOff ||
+        !notNominated ||
+        !rating ||
+        !goals ||
+        !assists ||
+        !minutesOut ||
+        !subField ||
+        !subLabel ||
+        !subInput ||
+        !replacementField ||
+        !replacement ||
+        !note
+      )
+        return;
+
+      const statusChecks = [subbedIn, benched, subbedOff, notNominated];
+      // Spielminuten-Vorschau: Stammspieler volle Spielzeit, eingewechselt
+      // Spielzeit minus Einwechselminute, ausgewechselt die Auswechselminute,
+      // Bank 0 Minuten.
+      const updateMinutes = () => {
+        if (notNominated.checked) {
+          minutesOut.textContent = '—';
+          return;
+        }
+        if (benched.checked) {
+          minutesOut.textContent = '0 Min';
+          return;
+        }
+        const raw = subInput.value.trim();
+        const sub = Number(raw);
+        const subValid =
+          raw !== '' && Number.isInteger(sub) && sub >= 1 && sub <= 120;
+        if (subbedIn.checked) {
+          minutesOut.textContent =
+            subValid && sub < matchDuration
+              ? `${matchDuration - sub} Min`
+              : '—';
+        } else if (subbedOff.checked) {
+          minutesOut.textContent = subValid ? `${sub} Min` : '—';
+        } else {
+          minutesOut.textContent = `${matchDuration} Min`;
+        }
+      };
+      const update = () => {
+        const locked = notNominated.checked;
+        const showSub = subbedIn.checked || subbedOff.checked;
+        for (const input of [
+          rating,
+          goals,
+          assists,
+          subInput,
+          replacement,
+          note,
+        ]) {
+          input.disabled = locked;
+        }
+        subField.hidden = !showSub;
+        subInput.disabled = locked || !showSub;
+        subLabel.textContent = subbedOff.checked
+          ? 'Auswechselminute'
+          : 'Einwechselminute';
+        replacementField.hidden = !subbedOff.checked;
+        replacement.disabled = locked || !subbedOff.checked;
+        updateMinutes();
+      };
+      statusChecks.forEach((checkbox) =>
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            for (const other of statusChecks)
+              if (other !== checkbox) other.checked = false;
+          }
+          update();
+        }),
+      );
+      subInput.addEventListener('input', updateMinutes);
+      update();
+    });
+</script>

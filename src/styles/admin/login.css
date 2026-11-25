@@ -1,0 +1,50 @@
+.admin-login-page {
+  min-height: 75vh;
+  display: grid;
+  place-items: center;
+  padding: 48px 20px;
+}
+
+.admin-login-card {
+  width: min(100%, 430px);
+  padding: 32px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-heropanel);
+}
+
+.admin-login-mark {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+}
+
+.admin-login-card .overline {
+  margin-bottom: 4px;
+}
+
+.admin-login-card h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.75px;
+}
+
+.admin-login-card > p:not(.overline) {
+  color: var(--color-slate);
+  font-size: 14px;
+}
+
+.admin-login-card form {
+  margin-block: 20px;
+}
+
+.admin-login-card .admin-primary-button {
+  width: 100%;
+}
+
+.admin-login-card > a {
+  color: var(--color-blueprint-blue);
+  font-size: 12px;
+}

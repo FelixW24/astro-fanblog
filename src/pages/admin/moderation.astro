@@ -1,0 +1,311 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAdmin, isSameOrigin } from '../../lib/admin';
+import { moderationPage, parseBanHours } from '../../lib/moderation';
+import { logAdminAction } from '../../lib/audit-log';
+
+const { supabase, user } = await getAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+let error = '';
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const action = String(form.get('action'));
+    const id = Number(form.get('id'));
+    if (
+      ['approve', 'reject'].includes(action) &&
+      Number.isSafeInteger(id) &&
+      id > 0
+    ) {
+      const hours = action === 'approve' ? 0 : parseBanHours(form);
+      if (hours === null)
+        error =
+          'Bitte wähle eine ganze Anzahl Stunden oder Tage, höchstens 365 Tage.';
+      else {
+        const result = await supabase.rpc('moderate_comment', {
+          target_comment: id,
+          decision: action === 'approve' ? 'published' : 'rejected',
+          ban_hours: hours,
+        });
+        if (result.error)
+          error =
+            result.error.code === '22023'
+              ? 'Der Kommentar wurde bereits bearbeitet oder ist nicht mehr vorhanden.'
+              : 'Die Entscheidung konnte nicht gespeichert werden.';
+        else
+          logAdminAction({
+            action: action === 'approve' ? 'update' : 'delete',
+            entity: 'comment_moderation',
+            entityId: id,
+            actorEmail: user.email ?? undefined,
+            detail: `decision=${action === 'approve' ? 'published' : 'rejected'}${hours ? ` ban_hours=${hours}` : ''}`,
+          });
+      }
+    } else error = 'Ungültige Aktion.';
+    if (!error) return Astro.redirect('/admin/moderation?gespeichert=1', 303);
+  }
+}
+const queuePage = moderationPage(Astro.url.searchParams.get('seite'));
+const logPage = moderationPage(Astro.url.searchParams.get('protokollseite'));
+const size = 20;
+const [queue, history] = await Promise.all([
+  supabase
+    .from('comments')
+    .select(
+      'id, body, created_at, reader_profiles!comments_user_id_fkey(username), articles(title, slug)',
+      { count: 'exact' },
+    )
+    .eq('status', 'pending')
+    .order('id')
+    .range((queuePage - 1) * size, queuePage * size - 1),
+  supabase
+    .from('comment_moderation_log')
+    .select(
+      '*, comments(body, reader_profiles!comments_user_id_fkey(username))',
+      { count: 'exact' },
+    )
+    .order('id', { ascending: false })
+    .range((logPage - 1) * size, logPage * size - 1),
+]);
+const date = (value: string) =>
+  new Date(value).toLocaleString('de-DE', {
+    timeZone: 'Europe/Berlin',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+const pageLink = (key: string, page: number) => {
+  const url = new URL(Astro.url);
+  url.searchParams.delete('gespeichert');
+  url.searchParams.set(key, String(page));
+  return url.pathname + url.search;
+};
+---
+
+<AdminLayout title="Kommentarmoderation" userEmail={user.email ?? 'Redaktion'}>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Community</span><h1>Kommentarmoderation</h1><p
+      >
+        Prüfe zurückgehaltene Kommentare und bisherige Entscheidungen.
+      </p>
+    </div>
+  </header>
+  {
+    error && (
+      <p role="alert" class="admin-alert admin-alert--error">
+        {error}
+      </p>
+    )
+  }
+  {
+    Astro.url.searchParams.has('gespeichert') && (
+      <p role="status" class="admin-alert">
+        Änderung gespeichert.
+      </p>
+    )
+  }
+  {
+    (queue.error || history.error) && (
+      <p role="alert">
+        Moderationsdaten konnten nicht vollständig geladen werden. Bitte lade
+        die Seite neu.
+      </p>
+    )
+  }
+  <section class="moderation-section" aria-labelledby="queue-title">
+    <h2 id="queue-title">Zur Prüfung ({queue.count ?? 0})</h2>
+    {
+      !queue.error && !queue.data?.length && (
+        <p>Aktuell warten keine Kommentare auf dieser Seite.</p>
+      )
+    }
+    {
+      queue.data?.map((comment) => (
+        <article class="moderation-card">
+          <h3>
+            Kommentar von{' '}
+            {comment.reader_profiles?.username ?? 'Gelöschter Nutzer'}
+          </h3>
+          <p>
+            <a href={`/beitraege/${comment.articles?.slug}`}>
+              {comment.articles?.title}
+            </a>{' '}
+            ·{' '}
+            <time datetime={comment.created_at}>
+              {date(comment.created_at)}
+            </time>
+          </p>
+          <blockquote>{comment.body}</blockquote>
+          <form method="post">
+            <>
+              <input type="hidden" name="id" value={comment.id} />
+              <button
+                type="submit"
+                name="action"
+                value="approve"
+                class="admin-primary-button"
+              >
+                Freigeben
+              </button>
+            </>
+          </form>
+          <form method="post" class="reject-form">
+            <input type="hidden" name="id" value={comment.id} />
+            <fieldset>
+              <legend>Optionale Schreibsperre bei Ablehnung</legend>
+              <label class="check-field">
+                <input type="checkbox" name="ban" /> Nutzer vorübergehend für
+                Kommentare sperren
+              </label>
+              <div class="ban-duration">
+                <>
+                  <label class="field">
+                    <span>
+                      Dauer
+                      <span class="required-marker" aria-hidden="true" />
+                    </span>
+                    <input
+                      type="number"
+                      name="duration"
+                      data-ban-field
+                      min="1"
+                      max="8760"
+                      value="1"
+                    />
+                  </label>
+                  <label class="field">
+                    <span>
+                      Einheit
+                      <span class="required-marker" aria-hidden="true" />
+                    </span>
+                    <select name="unit" data-ban-field>
+                      <>
+                        <option value="hours">Stunden</option>
+                        <option value="days">Tage</option>
+                      </>
+                    </select>
+                  </label>
+                </>
+              </div>
+              <p>
+                Höchstens 365 Tage. Eine längere bestehende Sperre wird nicht
+                verkürzt. Die Sperre betrifft neue Kommentare und Antworten.
+              </p>
+            </fieldset>
+            <button
+              type="submit"
+              name="action"
+              value="reject"
+              class="admin-danger-button"
+            >
+              Ablehnen
+            </button>
+          </form>
+        </article>
+      ))
+    }
+    <nav aria-label="Seiten der Warteschlange">
+      {
+        queuePage > 1 && (
+          <a href={pageLink('seite', queuePage - 1)}>Vorherige Kommentare</a>
+        )
+      }{
+        (queue.count ?? 0) > queuePage * size && (
+          <a href={pageLink('seite', queuePage + 1)}>Weitere Kommentare</a>
+        )
+      }
+    </nav>
+  </section>
+  <p><a href="/admin/blacklist">Blacklist-Wörter verwalten</a></p>
+  <section class="moderation-section" aria-labelledby="history-title">
+    <h2 id="history-title">Entscheidungsprotokoll</h2>
+    {
+      history.data?.map((entry) => (
+        <article class="moderation-card">
+          <h3>
+            {entry.decision === 'published' ? 'Freigegeben' : 'Abgelehnt'} ·{' '}
+            {entry.comments?.reader_profiles?.username ?? 'Gelöschter Nutzer'}
+          </h3>
+          <blockquote>{entry.comments?.body}</blockquote>
+          <p>
+            <time datetime={entry.created_at}>{date(entry.created_at)}</time> ·
+            Redaktionskonto:{' '}
+            <span class="account-id">
+              {entry.moderator_id ?? 'Gelöschtes Konto'}
+            </span>
+          </p>
+          {entry.blocked_until && (
+            <p>
+              Schreibsperre bis {date(entry.blocked_until)} Uhr (Berliner Zeit).
+            </p>
+          )}
+        </article>
+      ))
+    }
+    <nav aria-label="Seiten des Entscheidungsprotokolls">
+      {
+        logPage > 1 && (
+          <a href={pageLink('protokollseite', logPage - 1)}>
+            Neuere Entscheidungen
+          </a>
+        )
+      }{
+        (history.count ?? 0) > logPage * size && (
+          <a href={pageLink('protokollseite', logPage + 1)}>
+            Ältere Entscheidungen
+          </a>
+        )
+      }
+    </nav>
+  </section>
+</AdminLayout>
+<style>
+  .moderation-section {
+    margin-block: 32px;
+  }
+  .moderation-section h2 {
+    margin-bottom: 16px;
+  }
+  .moderation-card {
+    padding: 20px;
+    margin-block: 16px;
+    border: 1px solid var(--color-fog);
+    border-radius: 12px;
+  }
+  .moderation-card p,
+  .moderation-section > p {
+    margin-block: 12px;
+  }
+  blockquote {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin-block: 16px;
+  }
+  .reject-form {
+    margin-top: 16px;
+    display: grid;
+    gap: 12px;
+  }
+  fieldset {
+    padding: 14px;
+    border: 1px solid var(--color-fog);
+  }
+  .ban-duration {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  nav {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .account-id {
+    overflow-wrap: anywhere;
+  }
+</style>

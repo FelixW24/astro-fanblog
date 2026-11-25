@@ -1,0 +1,43 @@
+<dialog
+  class="editor-dialog"
+  data-editor-dialog
+  aria-labelledby="editor-dialog-title"
+  aria-describedby="editor-dialog-description"
+>
+  <span class="editor-dialog__eyebrow">Redaktion</span>
+  <h2 id="editor-dialog-title" data-editor-dialog-title></h2>
+  <p id="editor-dialog-description" data-editor-dialog-description></p>
+  <form class="editor-dialog__form" data-editor-dialog-form novalidate>
+    <label class="editor-dialog__field" data-editor-dialog-field hidden>
+      <span
+        >Ziel-URL<span class="required-marker" aria-hidden="true"></span></span
+      >
+      <input
+        type="text"
+        inputmode="url"
+        autocomplete="url"
+        data-editor-dialog-input
+        aria-describedby="editor-dialog-error"
+      />
+    </label>
+    <p
+      class="editor-dialog__error"
+      id="editor-dialog-error"
+      role="alert"
+      hidden
+    >
+      Bitte gib eine gültige URL ein (https://, http://, mailto:, / oder #).
+    </p>
+    <div class="editor-dialog__actions">
+      <button
+        type="button"
+        class="editor-dialog__cancel"
+        data-editor-dialog-cancel>Abbrechen</button
+      >
+      <button
+        type="submit"
+        class="editor-dialog__submit"
+        data-editor-dialog-submit></button>
+    </div>
+  </form>
+</dialog>

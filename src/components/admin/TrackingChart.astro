@@ -1,0 +1,79 @@
+---
+import type { DayBucket } from '../../lib/tracking';
+
+interface Props {
+  title: string;
+  buckets: DayBucket[];
+  metric?: 'views' | 'visitors';
+}
+
+const { title, buckets, metric = 'views' } = Astro.props;
+
+const width = 720;
+const height = 220;
+const padding = { top: 16, right: 12, bottom: 28, left: 36 };
+const values = buckets.map((bucket) =>
+  metric === 'visitors' ? bucket.visitors : bucket.views,
+);
+const max = Math.max(1, ...values);
+const innerWidth = width - padding.left - padding.right;
+const innerHeight = height - padding.top - padding.bottom;
+const x = (index: number) =>
+  buckets.length <= 1
+    ? padding.left + innerWidth / 2
+    : padding.left + (index / (buckets.length - 1)) * innerWidth;
+const y = (value: number) =>
+  padding.top + innerHeight - (value / max) * innerHeight;
+const points = values.map((value, index) => `${x(index)},${y(value)}`).join(' ');
+const area = `${x(0)},${padding.top + innerHeight} ${points} ${x(buckets.length - 1)},${padding.top + innerHeight}`;
+// Achsenbeschriftung: erster, mittlerer und letzter Tag.
+const labelIndexes = [
+  0,
+  Math.floor((buckets.length - 1) / 2),
+  buckets.length - 1,
+].filter((value, index, all) => all.indexOf(value) === index);
+const unit = metric === 'visitors' ? 'Besucher' : 'Aufrufe';
+---
+
+<figure class="tracking-chart">
+  <figcaption>{title}</figcaption>
+  <svg
+    viewBox={`0 0 ${width} ${height}`}
+    role="img"
+    aria-label={`${title}: ${unit} pro Tag, Maximum ${max}`}
+  >
+    <g class="tracking-chart__grid">
+      <line
+        x1={padding.left}
+        x2={width - padding.right}
+        y1={padding.top}
+        y2={padding.top}></line>
+      <line
+        x1={padding.left}
+        x2={width - padding.right}
+        y1={padding.top + innerHeight}
+        y2={padding.top + innerHeight}></line>
+      <line
+        x1={padding.left}
+        x2={padding.left}
+        y1={padding.top}
+        y2={padding.top + innerHeight}></line>
+    </g>
+    <text x={4} y={padding.top + 4} class="tracking-chart__max">{max}</text>
+    <text x={4} y={padding.top + innerHeight} class="tracking-chart__min">0</text>
+    <polygon points={area} class="tracking-chart__area"></polygon>
+    <polyline points={points} class="tracking-chart__line"></polyline>
+    {
+      labelIndexes.map((index) => (
+        <text
+          x={x(index)}
+          y={height - 8}
+          text-anchor="middle"
+          class="tracking-chart__label"
+        >
+          {buckets[index]?.label}
+        </text>
+      ))
+    }
+  </svg>
+</figure>

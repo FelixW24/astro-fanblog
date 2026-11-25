@@ -1,0 +1,90 @@
+---
+import PlayerStatusBadges from '../PlayerStatusBadges.astro';
+import Icon from '../Icon.astro';
+import type { Player } from '../../lib/content';
+import { groupPlayersByPosition } from '../../lib/admin-squad';
+import { squadStatuses } from '../../lib/player';
+interface Props {
+  players: Player[];
+  status: string;
+}
+const { players, status } = Astro.props;
+const label =
+  squadStatuses.find(({ value }) => value === status)?.label ?? status;
+---
+
+<div class="player-position-groups">
+  {
+    groupPlayersByPosition(players).map((group) => (
+      <section
+        class="player-position-group"
+        aria-labelledby={`${status}-${group.value}`}
+      >
+        <header class="player-position-heading">
+          <h3 id={`${status}-${group.value}`}>{group.label}</h3>
+        </header>
+        {group.players.length ? (
+          <div class="admin-table-wrap">
+            <table class="admin-table player-admin-table">
+              <caption class="sr-only">
+                {label}: {group.label}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">
+                    Spieler<span class="admin-table-count"
+                      >{group.players.length}</span
+                    >
+                  </th>
+                  <th scope="col">Kaderstatus</th>
+                  <th scope="col">
+                    <span class="sr-only">Aktion</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.players.map((player) => (
+                  <tr>
+                    <td>
+                      <strong>{player.name}</strong>
+                      <PlayerStatusBadges player={player} />
+                      <small>
+                        #{player.shirt_number ?? '–'} · /kader/{player.slug}
+                      </small>
+                    </td>
+                    <td>{label}</td>
+                    <td>
+                      <div class="admin-page-actions">
+                        <a
+                          class="admin-secondary-button player-edit-action"
+                          href={`/admin/spieler/${player.id}`}
+                          aria-label={`${player.name} bearbeiten`}
+                        >
+                          <Icon name="edit" size={20} />
+                        </a>
+                        <a
+                          class="admin-danger-button player-delete-action"
+                          href={`/admin/spieler/${player.id}/loeschen`}
+                          aria-label={`${player.name} löschen`}
+                          data-player-delete
+                          data-player-id={player.id}
+                          data-player-name={player.name}
+                        >
+                          <Icon name="trash" size={20} />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p class="player-group-empty">
+            Noch keine Spieler in dieser Position.
+          </p>
+        )}
+      </section>
+    ))
+  }
+</div>

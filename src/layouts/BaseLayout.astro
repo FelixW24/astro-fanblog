@@ -1,0 +1,221 @@
+---
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import AuthNotice from '../components/AuthNotice.astro';
+import NotificationCenter from '../components/NotificationCenter.astro';
+import ReaderSettingsDialog from '../components/ReaderSettingsDialog.astro';
+import WelcomeModal from '../components/WelcomeModal.astro';
+import '@fontsource-variable/inter/wght.css';
+import '../styles/global.css';
+import '../styles/forms.css';
+import '../styles/panda.css';
+// Profil-Modal: Styles bewusst nach den Basis-Styles importieren, damit die
+// Reihenfolge der Stylesheets (z. B. .shell vs. Auth-Karten) stabil bleibt.
+import '../styles/public/readers.css';
+import '../styles/public/reader-profile.css';
+import '../styles/public/profile-settings.css';
+import {
+  serializeJsonLd,
+  websiteStructuredData,
+  publicHttpUrl,
+} from '../lib/structured-data';
+import {
+  defaultNewsletterSettings,
+  loadNewsletterSettings,
+  type NewsletterSettings,
+} from '../lib/newsletter';
+import { createServerClient } from '../lib/supabase';
+import { appEnv } from '../config/app-config';
+import { css } from '../../styled-system/css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string | null;
+  workspace?: boolean;
+  type?: 'website' | 'article';
+  structuredData?: Record<string, unknown>;
+}
+
+const {
+  title = 'Astro Fanblog – unabhängiger Fanblog zum FC Example',
+  description = 'Analysen, Spielberichte, News, PK-Zusammenfassungen, Transfers und Kaderblicke rund um den FC Example – unabhängig, kritisch und immer aus Fansicht.',
+  image = '/images/article-default-1200.webp',
+  workspace = false,
+  type = 'website',
+  structuredData,
+} = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.url.origin);
+const socialImage = publicHttpUrl(image, canonical.href);
+const noindex =
+  workspace ||
+  /^\/(admin|profil|auth|anmelden|registrieren|passwort-neu|passwort-vergessen|newsletter)(\/|$)/.test(
+    Astro.url.pathname,
+  ) ||
+  Astro.url.searchParams.has('suche');
+// Willkommens-Modal mit den redaktionell gepflegten Texten laden (nur auf
+// öffentlichen, indexierbaren Seiten). Ohne erreichbare Datenbank bleiben
+// die Default-Texte aus der Migration stehen. In Playwright-Läufen
+// (PLAYWRIGHT_TEST=1) wird das Modal nicht gerendert, damit es die
+// Szenarien nicht als Overlay blockiert.
+const playwrightRun = appEnv('PLAYWRIGHT_TEST') === '1';
+let welcomeSettings: NewsletterSettings | null = null;
+if (!noindex && !playwrightRun) {
+  try {
+    welcomeSettings = await loadNewsletterSettings(createServerClient());
+  } catch (error) {
+    console.error('newsletter.settings_unavailable', error);
+    welcomeSettings = defaultNewsletterSettings();
+  }
+}
+---
+
+<!doctype html>
+<html
+  lang="de"
+  data-theme="dark"
+  data-data-saver={Astro.locals.dataSaver ? 'on' : undefined}
+  itemscope
+  itemtype="https://schema.org/WebSite"
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {
+      !noindex && (
+        <>
+          {/* AdSense: Site-Verifizierung + Loader nur auf öffentlichen,
+              indexierbaren Seiten — nicht in Admin/Auth/Profil. */}
+          <meta
+            name="google-adsense-account"
+            content="ca-pub-7923968852636192"
+          />
+          <script
+            is:inline
+            async
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7923968852636192"
+            crossorigin="anonymous"
+          />
+        </>
+      )
+    }
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="Astro Fanblog – neue Beiträge"
+      href="/rss.xml"
+    />
+    <link rel="api-catalog" href="/.well-known/api-catalog" />
+    <link rel="service-doc" href="/llms.txt" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={type} />
+    <meta property="og:url" content={canonical} />
+    {socialImage && <meta property="og:image" content={socialImage} />}
+    {
+      !noindex && (
+        <>
+          <script
+            is:inline
+            type="application/ld+json"
+            set:html={serializeJsonLd(
+              websiteStructuredData(canonical.href, title, description),
+            )}
+          />
+          {structuredData && (
+            <script
+              is:inline
+              type="application/ld+json"
+              set:html={serializeJsonLd(structuredData)}
+            />
+          )}
+        </>
+      )
+    }
+    <meta id="theme-color-light" name="theme-color" content="#0e1012" />
+    <meta
+      id="theme-color-dark"
+      name="theme-color"
+      content="#0e1012"
+      media="(prefers-color-scheme: dark)"
+    />
+    <script is:inline src="/theme-init.js"></script>
+    <link rel="canonical" href={canonical} />
+    <meta itemprop="name" content={title} />
+    <meta itemprop="url" content={canonical} />
+    <meta itemprop="description" content={description} />
+    <meta itemprop="inLanguage" content="de-DE" />
+    <link
+      rel="icon"
+      href="/logo/favicon.svg"
+      type="image/svg+xml"
+    />
+    <title>{title}</title>
+  </head>
+  <body
+    id="seitenanfang"
+    class={css({ bg: 'canvas', color: 'inkBlack', fontFamily: 'ranade' })}
+  >
+    <span
+      itemprop="publisher"
+      itemscope
+      itemtype="https://schema.org/Organization"
+    >
+      <meta itemprop="name" content="Astro Fanblog" />
+      <link itemprop="url" href={Astro.url.origin + '/'} />
+    </span>
+    <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+    <div class="site-shell" data-site-shell="public">
+      <Header workspace={workspace} />
+      <div
+        class:list={['site-content', { 'site-content--workspace': workspace }]}
+      >
+        <div class="site-page">
+          <main id="inhalt">
+            <slot />
+          </main>
+        </div>
+        <Footer />
+      </div>
+    </div>
+    {!Astro.locals.readerUser && <AuthNotice />}
+    {
+      Astro.locals.readerUser && (
+        <ReaderSettingsDialog
+          editorDenied={Astro.url.searchParams.has('redaktion')}
+        />
+      )
+    }
+    {
+      welcomeSettings && welcomeSettings.modalEnabled && (
+        <WelcomeModal settings={welcomeSettings} />
+      )
+    }
+    <NotificationCenter />
+    <script>
+      import { initRequiredFields } from '../scripts/required-fields';
+      import { initDataSaverImages } from '../scripts/data-saver-images';
+      import { initPageTracking } from '../scripts/page-tracking';
+      initRequiredFields();
+      initDataSaverImages();
+      initPageTracking();
+
+      // Mobile: Die fixed Auth-Stage (.reader-auth-stage) braucht oben Platz
+      // in Header-Höhe. Statt einer fest verdrahteten px-Zahl wird die Höhe
+      // gemessen und als --site-header-height gesetzt (ResizeObserver reagiert
+      // auf Viewport-/Inhaltsänderungen des Headers).
+      const header = document.querySelector<HTMLElement>('.site-header');
+      if (header) {
+        const syncHeaderHeight = () =>
+          document.documentElement.style.setProperty(
+            '--site-header-height',
+            `${header.getBoundingClientRect().height}px`,
+          );
+        syncHeaderHeight();
+        new ResizeObserver(syncHeaderHeight).observe(header);
+      }
+    </script>
+  </body>
+</html>

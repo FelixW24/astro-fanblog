@@ -1,0 +1,272 @@
+---
+import type { Article } from '../lib/content';
+import ArticleCard from './ArticleCard.astro';
+
+interface Props {
+  articles: Article[];
+}
+
+const { articles } = Astro.props;
+const slideCount = articles.length + 1;
+---
+
+<section
+  class="latest-carousel"
+  aria-label="Neueste Beiträge"
+  aria-roledescription="Karussell"
+  data-latest-carousel
+>
+  <div class="section-heading section-heading--light">
+    <div>
+      <span class="overline">Aktuell</span><h2>Neueste Beiträge</h2>
+    </div>
+  </div>
+  <div class="latest-carousel__viewport" data-carousel-viewport>
+    <div class="latest-carousel__track">
+      {
+        articles.map((article, index) => (
+          <div
+            class="latest-carousel__slide"
+            role="group"
+            aria-roledescription="Folie"
+            aria-label={`${index + 1} von ${slideCount}`}
+            data-carousel-slide
+          >
+            <ArticleCard article={article} featured priority={index === 0} />
+          </div>
+        ))
+      }
+      <div
+        class="latest-carousel__slide"
+        role="group"
+        aria-roledescription="Folie"
+        aria-label={`${slideCount} von ${slideCount}`}
+        data-carousel-slide
+      >
+        <a class="latest-carousel__all" href="/beitraege">
+          <span class="overline">Noch nicht genug?</span>
+          <strong>Alle Beiträge entdecken</strong>
+          <span> Analysen, News und Geschichten im Überblick. </span>
+          <b>Zum Beitragsarchiv <span aria-hidden="true">→</span></b>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="latest-carousel__controls">
+    <div
+      class="latest-carousel__navigation"
+      role="group"
+      aria-label="Beitragsauswahl"
+    >
+      <button
+        type="button"
+        class="latest-carousel__arrow"
+        data-carousel-previous
+        aria-label="Vorheriger Beitrag"
+      >
+        <span aria-hidden="true">←</span>
+      </button>
+      <p
+        class="latest-carousel__status visually-hidden"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        Beitrag <span data-carousel-position>1</span> von {slideCount}
+      </p>
+      <div class="latest-carousel__dots" data-carousel-dots>
+        {
+          Array.from({ length: slideCount }, (_, index) => (
+            <button
+              type="button"
+              class:list={[
+                'latest-carousel__dot',
+                { 'is-active': index === 0 },
+              ]}
+              data-carousel-dot
+              data-carousel-index={index}
+              aria-label={`Beitrag ${index + 1} von ${slideCount} anzeigen`}
+              aria-current={index === 0 ? 'true' : undefined}
+            />
+          ))
+        }
+      </div>
+      <button
+        type="button"
+        class="latest-carousel__arrow"
+        data-carousel-next
+        aria-label="Nächster Beitrag"
+      >
+        <span aria-hidden="true">→</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<script>
+  document
+    .querySelectorAll<HTMLElement>('[data-latest-carousel]')
+    .forEach((carousel) => {
+      const viewport = carousel.querySelector<HTMLElement>(
+        '[data-carousel-viewport]',
+      );
+      const slides = Array.from(
+        carousel.querySelectorAll<HTMLElement>('[data-carousel-slide]'),
+      );
+      const previous = carousel.querySelector<HTMLButtonElement>(
+        '[data-carousel-previous]',
+      );
+      const next = carousel.querySelector<HTMLButtonElement>(
+        '[data-carousel-next]',
+      );
+      const position = carousel.querySelector<HTMLElement>(
+        '[data-carousel-position]',
+      );
+      const dots = Array.from(
+        carousel.querySelectorAll<HTMLButtonElement>('[data-carousel-dot]'),
+      );
+
+      if (
+        !viewport ||
+        !previous ||
+        !next ||
+        !position ||
+        !slides.length ||
+        dots.length !== slides.length
+      ) {
+        return;
+      }
+
+      // Selection stays under user control: reading must never trigger a slide change.
+      let currentIndex = 0;
+      let pointerStartX: number | null = null;
+      let pointerCurrentX = 0;
+      let pointerStartScrollLeft = 0;
+      let dragged = false;
+      let suppressClick = false;
+      const reducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      );
+
+      const updateState = (index: number) => {
+        currentIndex = index;
+        position.textContent = String(index + 1);
+        slides.forEach((slide, slideIndex) => {
+          if (slideIndex === index) {
+            slide.removeAttribute('inert');
+            slide.removeAttribute('aria-hidden');
+          } else {
+            slide.setAttribute('inert', '');
+            slide.setAttribute('aria-hidden', 'true');
+          }
+        });
+        dots.forEach((dot, dotIndex) => {
+          const isActive = dotIndex === index;
+          dot.classList.toggle('is-active', isActive);
+          if (isActive) {
+            dot.setAttribute('aria-current', 'true');
+          } else {
+            dot.removeAttribute('aria-current');
+          }
+        });
+      };
+
+      const showSlide = (
+        index: number,
+        behavior: ScrollBehavior = 'smooth',
+      ) => {
+        const wrappedIndex = (index + slides.length) % slides.length;
+        updateState(wrappedIndex);
+        // Datensparmodus (ab Laptop/Tablet bis Smartphone aktiv) spart auch
+        // das weiche Scrollen der Karussell-Navigation.
+        const motionOff =
+          reducedMotion.matches ||
+          document.documentElement.dataset.dataSaver === 'on';
+        viewport.scrollTo({
+          left: slides[wrappedIndex].offsetLeft,
+          behavior: motionOff ? 'instant' : behavior,
+        });
+      };
+
+      previous.addEventListener('click', () => {
+        showSlide(currentIndex - 1);
+      });
+      dots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+          showSlide(index);
+        });
+      });
+      next.addEventListener('click', () => {
+        showSlide(currentIndex + 1);
+      });
+
+      viewport.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'touch') return;
+        if (event.button !== 0) return;
+        pointerStartX = event.clientX;
+        pointerCurrentX = event.clientX;
+        pointerStartScrollLeft = viewport.scrollLeft;
+        dragged = false;
+      });
+
+      viewport.addEventListener('pointermove', (event) => {
+        if (pointerStartX === null) return;
+        pointerCurrentX = event.clientX;
+        const distance = pointerCurrentX - pointerStartX;
+        if (Math.abs(distance) > 6 && !dragged) {
+          dragged = true;
+          viewport.setPointerCapture(event.pointerId);
+          viewport.classList.add('is-dragging');
+        }
+        if (dragged) viewport.scrollLeft = pointerStartScrollLeft - distance;
+      });
+
+      const finishSwipe = (event: PointerEvent) => {
+        if (pointerStartX === null) return;
+        const distance = pointerCurrentX - pointerStartX;
+        viewport.classList.remove('is-dragging');
+        if (viewport.hasPointerCapture(event.pointerId)) {
+          viewport.releasePointerCapture(event.pointerId);
+        }
+
+        if (dragged && Math.abs(distance) >= 50) {
+          showSlide(currentIndex + (distance < 0 ? 1 : -1));
+        } else if (dragged) {
+          showSlide(currentIndex);
+        }
+
+        suppressClick = dragged;
+        pointerStartX = null;
+        setTimeout(() => {
+          suppressClick = false;
+        });
+      };
+
+      viewport.addEventListener('pointerup', finishSwipe);
+      viewport.addEventListener('pointercancel', finishSwipe);
+      viewport.addEventListener(
+        'click',
+        (event) => {
+          if (suppressClick) event.preventDefault();
+        },
+        true,
+      );
+
+      viewport.addEventListener('scrollend', () => {
+        if (pointerStartX !== null) return;
+        const closestIndex = slides.reduce((closest, slide, index) => {
+          const closestDistance = Math.abs(
+            slides[closest].offsetLeft - viewport.scrollLeft,
+          );
+          const distance = Math.abs(slide.offsetLeft - viewport.scrollLeft);
+          return distance < closestDistance ? index : closest;
+        }, 0);
+        updateState(closestIndex);
+      });
+
+      new ResizeObserver(() => showSlide(currentIndex, 'auto')).observe(
+        viewport,
+      );
+      updateState(0);
+    });
+</script>

@@ -1,0 +1,102 @@
+/* Fehlermelde-Modal im Footer: gleiche Tokens und Dialog-Optik wie das
+   Profil-Modal (src/styles/public/profile-settings.css), nur kompakter.
+   Die Felder greifen auf .reader-form aus readers.css zurück. */
+.bug-report-dialog {
+  /* Der Panda-Reset setzt die native Zentrierung des <dialog>-Elements
+     (margin: auto) zurück; ohne diese Deklaration klebt das Modal
+     oben links statt mittig im Viewport. */
+  margin: auto;
+  width: min(680px, 100% - 32px);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-black);
+}
+.bug-report-dialog::backdrop {
+  background: rgb(14 16 18 / 62%);
+}
+html:has(dialog.bug-report-dialog[open]) {
+  overflow: hidden;
+}
+.bug-report-dialog__surface {
+  display: flex;
+  flex-direction: column;
+  /* Großzügige Höhe: Auf normalen Bildschirmen passt das Formular ohne
+     innere Scrollleiste komplett ins Modal. */
+  max-height: min(880px, 92vh);
+  overflow: hidden;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-heropanel);
+  background:
+    linear-gradient(var(--color-paper), var(--color-paper)), var(--color-canvas);
+  box-shadow: var(--shadow-floating);
+}
+/* Kompakter Header: Die Luft gehört dem Formular, nicht dem Titel. */
+.bug-report-dialog__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-fog);
+}
+.bug-report-dialog__header h2 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+.bug-report-dialog__close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bug-report-dialog__close:hover {
+  background: var(--surface-interactive-hover);
+}
+.bug-report-dialog__form {
+  gap: 18px;
+  padding: 24px 32px 32px;
+  overflow-y: auto;
+}
+/* .reader-form formatiert nur input und textarea; select gleichermaßen
+   gestalten. */
+.bug-report-dialog__form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-fog);
+  border-radius: 10px;
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font: inherit;
+}
+.bug-report-dialog__form textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+.bug-report-dialog__error,
+.bug-report-dialog__status {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}
+.bug-report-dialog__error {
+  color: var(--color-ink-black);
+  padding: 10px 12px;
+  border: 1px solid var(--color-fog);
+  border-radius: 10px;
+  background: var(--color-stone);
+}
+.bug-report-dialog__status {
+  color: var(--color-blueprint-blue);
+}

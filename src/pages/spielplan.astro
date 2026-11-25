@@ -1,0 +1,147 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeading from '../components/PageHeading.astro';
+import EmptyState from '../components/EmptyState.astro';
+import Icon from '../components/Icon.astro';
+import { createServerClient } from '../lib/supabase';
+import {
+  buildMatchTimeline,
+  formatMatchClock,
+  formatMatchDate,
+  hasKickoffDate,
+  isUpcomingMatch,
+  matchOutcome,
+  matchScore,
+  matchTeams,
+  type Match,
+} from '../lib/matches';
+import '../styles/public/match-history.css';
+
+let matches: Match[] = [];
+let backendAvailable = true;
+try {
+  const { data, error } = await createServerClient()
+    .from('matches')
+    .select('*')
+    .order('kickoff_at', { ascending: false })
+    .order('id', { ascending: false });
+  if (error) throw error;
+  matches = data ?? [];
+} catch {
+  backendAvailable = false;
+}
+
+const now = new Date();
+// Eine durchgehende Timeline: oben die Spiele ohne festen Termin, dann die
+// Historie (neuestes zuerst). Terminierte kommende Spiele stehen ganz am Ende
+// als Stapel in Anlage-Reihenfolge (zuerst eingetragen = zuerst angezeigt).
+const timeline = buildMatchTimeline(matches, now);
+---
+
+<BaseLayout
+  title="Spielplan & Spielhistorie | Astro Fanblog"
+  description="Spielplan und Spielhistorie des FC Example als Zeitstrahl mit allen Ergebnissen."
+>
+  <header class="page-hero">
+    <div class="shell">
+      <span class="overline">Saison 2026/27</span>
+      <PageHeading>Spielplan & Historie</PageHeading>
+    </div>
+  </header>
+  <div class="section shell">
+    {
+      !backendAvailable ? (
+        <EmptyState
+          technical
+          title="Spielplan ist gerade nicht erreichbar"
+          message="Bitte versuche es in ein paar Minuten noch einmal."
+        />
+      ) : !timeline.length ? (
+        <EmptyState
+          title="Noch keine Spiele eingetragen"
+          message="Sobald der Spielplan gepflegt ist, findest du hier kommende Spiele und die Historie."
+        />
+      ) : (
+        <ol class="match-history">
+          {timeline.map((match) => {
+            const teams = matchTeams(match);
+            const scheduled = hasKickoffDate(match);
+            const isUpcoming = isUpcomingMatch(match, now);
+            const outcome = isUpcoming ? null : matchOutcome(match);
+            const score = isUpcoming ? null : matchScore(match);
+            return (
+              <li
+                class:list={[
+                  'match-history__item',
+                  isUpcoming
+                    ? scheduled
+                      ? 'match-history__item--scheduled'
+                      : 'match-history__item--unscheduled'
+                    : outcome && `match-history__item--${outcome}`,
+                ]}
+              >
+                <span
+                  class:list={[
+                    'match-history__marker',
+                    isUpcoming
+                      ? scheduled
+                        ? 'match-history__marker--scheduled'
+                        : 'match-history__marker--unscheduled'
+                      : '',
+                  ]}
+                  aria-hidden="true"
+                />
+                <a
+                  class:list={[
+                    'match-history__card',
+                    isUpcoming
+                      ? scheduled
+                        ? 'match-history__card--scheduled'
+                        : 'match-history__card--unscheduled'
+                      : '',
+                  ]}
+                  href={`/spielplan/${match.id}`}
+                  aria-label={`Spieldetails: ${teams[0].name} gegen ${teams[1].name}, ${isUpcoming ? 'noch nicht ausgetragen' : (score ?? 'kein Ergebnis')}`}
+                >
+                  <div class="match-history__top">
+                    <p class="match-history__meta">
+                      {match.venue}
+                      {scheduled && (
+                        <>
+                          {' · '}
+                          <Icon name="calendar" size={13} />
+                          <time datetime={match.kickoff_at}>
+                            {formatMatchDate(match.kickoff_at)}
+                          </time>
+                          {' · '}
+                          <Icon name="clock" size={13} />
+                          {formatMatchClock(match.kickoff_at)}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <p class="match-history__teams">
+                    <span>{teams[0].name}</span>
+                    <strong
+                      class:list={[
+                        'match-history__score',
+                        isUpcoming
+                          ? scheduled
+                            ? 'match-history__score--scheduled'
+                            : 'match-history__score--unscheduled'
+                          : outcome && `match-history__score--${outcome}`,
+                      ]}
+                    >
+                      {isUpcoming ? 'vs.' : (score ?? '–')}
+                    </strong>
+                    <span>{teams[1].name}</span>
+                  </p>
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+      )
+    }
+  </div>
+</BaseLayout>

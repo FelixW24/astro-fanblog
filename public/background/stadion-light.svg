@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="title">
+  <title>Stadion bei Tag (neutral)</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dfe6f5"/>
+      <stop offset="0.7" stop-color="#eef1f9"/>
+      <stop offset="1" stop-color="#f7f8fc"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <g stroke="#b9c2da" stroke-width="6">
+    <line x1="220" y1="620" x2="220" y2="180"/>
+    <line x1="560" y1="620" x2="560" y2="120"/>
+    <line x1="1040" y1="620" x2="1040" y2="120"/>
+    <line x1="1380" y1="620" x2="1380" y2="180"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="190" y="160" width="60" height="40" rx="8"/>
+    <rect x="530" y="100" width="60" height="40" rx="8"/>
+    <rect x="1010" y="100" width="60" height="40" rx="8"/>
+    <rect x="1350" y="160" width="60" height="40" rx="8"/>
+  </g>
+  <path d="M0 640 Q 800 520 1600 640 L1600 900 L0 900 Z" fill="#d3d9ea"/>
+  <path d="M0 700 Q 800 590 1600 700 L1600 900 L0 900 Z" fill="#c3cbdf"/>
+  <rect x="0" y="760" width="1600" height="140" fill="#aeb8d4"/>
+  <g fill="#9aa6c6">
+    <rect x="120" y="700" width="1360" height="14" rx="7"/>
+    <rect x="200" y="730" width="1200" height="12" rx="6"/>
+  </g>
+  <rect x="700" y="790" width="200" height="110" rx="6" fill="none" stroke="#8b97ba" stroke-width="6"/>
+  <line x1="800" y1="790" x2="800" y2="900" stroke="#8b97ba" stroke-width="6"/>
+</svg>

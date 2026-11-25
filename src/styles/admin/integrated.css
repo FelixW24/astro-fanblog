@@ -1,0 +1,173 @@
+.site-content--workspace::before {
+  opacity: 0.12;
+}
+.site-content--workspace {
+  overflow-x: clip;
+}
+.editorial-workspace {
+  min-width: 0;
+  padding: 24px;
+}
+.editorial-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  font-size: 12px;
+}
+.editorial-context__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-slate);
+}
+.editorial-context__back:hover {
+  color: var(--color-ink-black);
+}
+/* Die Redaktionsnavigation sitzt im Header und ersetzt dort das Blog-Menü.
+   Das Einstellungs-Dropdown wird optisch an die Sidebar angepasst.
+   Doppelte Klasse, damit die Regel gegen .primary-nav { overflow-x: auto }
+   aus base.css gewinnt — unabhängig von der CSS-Ladereihenfolge
+   (BaseLayout-CSS lädt nach AdminLayout-CSS); sonst würde das aufgeklappte
+   Submenü unsichtbar abgeschnitten. */
+.primary-nav.primary-nav--workspace {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+.editorial-tabs__group {
+  position: relative;
+}
+.editorial-tabs__group summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--sidebar-link);
+  font-size: 12px;
+  white-space: nowrap;
+  list-style: none;
+  cursor: pointer;
+}
+.editorial-tabs__group summary::-webkit-details-marker {
+  display: none;
+}
+.editorial-tabs__group summary:hover {
+  color: var(--sidebar-active);
+  background: var(--sidebar-hover);
+}
+.editorial-tabs__group.is-active summary,
+.editorial-tabs__group summary[aria-current='page'] {
+  color: var(--sidebar-on-accent);
+  background: var(--sidebar-accent);
+  box-shadow: 0 5px 12px
+    color-mix(in srgb, var(--sidebar-accent) 28%, transparent);
+  font-weight: 600;
+}
+.editorial-tabs__chevron {
+  transition: transform 160ms ease;
+}
+.editorial-tabs__group[open] .editorial-tabs__chevron {
+  transform: rotate(180deg);
+}
+.editorial-tabs__submenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 8px;
+  border: 1px solid var(--sidebar-line);
+  border-radius: 10px;
+  background: var(--sidebar-surface);
+  color: var(--sidebar-text);
+  box-shadow: var(--shadow-floating, 0 8px 24px rgb(0 0 0 / 0.12));
+}
+.editorial-tabs__submenu-group {
+  padding: 6px 10px;
+  color: var(--sidebar-muted);
+  font-family: var(--font-suisse-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.editorial-tabs__submenu a {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--sidebar-link);
+  font-size: 14px;
+}
+.editorial-tabs__submenu a:hover {
+  color: var(--sidebar-active);
+  background: var(--sidebar-hover);
+}
+.editorial-tabs__submenu a[aria-current='page'] {
+  color: var(--sidebar-on-accent);
+  background: var(--sidebar-accent);
+  font-weight: 600;
+}
+.editorial-workspace .admin-main {
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 32px;
+}
+.editorial-workspace .admin-page-heading {
+  margin-bottom: 24px;
+}
+.editorial-workspace .editor-command-bar {
+  top: 80px;
+  z-index: 10;
+}
+.editorial-workspace :focus-visible {
+  outline: 2px solid var(--color-blueprint-blue);
+  outline-offset: 3px;
+}
+@media (max-width: 1100px) {
+  .editorial-workspace .admin-filters {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .editorial-workspace .admin-filters > label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 820px) {
+  /* Mobiler Drawer: Summary wie die übrigen Drawer-Links, Submenü klappt
+     inline darunter auf statt als schwebendes Panel. */
+  .editorial-tabs__group summary {
+    width: 100%;
+    min-height: 44px;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-size: 14px;
+  }
+  .editorial-tabs__submenu {
+    position: static;
+    width: 100%;
+    margin-top: 4px;
+    box-shadow: none;
+  }
+}
+@media (max-width: 760px) {
+  .editorial-workspace {
+    padding: 20px 16px;
+  }
+  .editorial-workspace .admin-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editorial-workspace .editor-command-bar {
+    position: static;
+  }
+  .editorial-workspace .admin-page-heading h1 {
+    font-size: 26px;
+  }
+}

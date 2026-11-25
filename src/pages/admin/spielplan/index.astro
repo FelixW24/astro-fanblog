@@ -1,0 +1,189 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminDeleteDialog from '../../../components/admin/AdminDeleteDialog.astro';
+import Icon from '../../../components/Icon.astro';
+import { getAdmin } from '../../../lib/admin';
+import { formatMatchTime, matchScore } from '../../../lib/matches';
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+const { data: matches, error: loadError } = await supabase
+  .from('matches')
+  .select('*')
+  .order('kickoff_at')
+  .order('id');
+const now = Date.now();
+const nextId = matches?.find(
+  (match) =>
+    !match.cancelled &&
+    match.kickoff_at !== null &&
+    Date.parse(match.kickoff_at) > now,
+)?.id;
+const saved = Astro.url.searchParams.get('saved');
+const importParam = Astro.url.searchParams.get('import');
+const messages: Record<string, string> = {
+  created: 'Spiel angelegt.',
+  updated: 'Änderungen gespeichert.',
+  deleted: 'Spiel gelöscht.',
+};
+if (saved && messages[saved]) {
+  if (importParam === 'ok')
+    messages[saved] += ' Ergebnis und Statistiken aus FotMob übernommen.';
+  else if (importParam === 'failed')
+    messages[saved] +=
+      ' Der FotMob-Import ist fehlgeschlagen — bitte Link prüfen oder Daten manuell eintragen.';
+}
+---
+
+<AdminLayout title="Spielplan" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading">
+    <div>
+      <h1>Spielplan</h1>
+    </div>
+    <div class="admin-page-actions">
+      <a class="admin-primary-button" href="/admin/spielplan/neu">
+        <Icon name="plus" size={16} /> Spiel hinzufügen
+      </a>
+    </div>
+  </header>
+  {
+    saved && messages[saved] && (
+      <div class="admin-alert" role="status" data-notification>
+        {messages[saved]}
+      </div>
+    )
+  }
+  <h2>Geplante und vergangene Spiele</h2>
+  {
+    loadError ? (
+      <div
+        class="admin-alert admin-alert--error"
+        role="alert"
+        data-notification
+      >
+        Der Spielplan konnte nicht geladen werden.
+      </div>
+    ) : (
+      <section class="admin-table-wrap" aria-label="Spielplan">
+        {matches?.length ? (
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Begegnung</th>
+                <th>Anstoß</th>
+                <th>Ergebnis</th>
+                <th>Status</th>
+                <th>
+                  <span class="sr-only">Aktion</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {matches.map((match) => (
+                <tr>
+                  <td>
+                    <strong>
+                      {match.is_home
+                        ? `FC Example – ${match.opponent}`
+                        : `${match.opponent} – FC Example`}
+                    </strong>
+                    <small>{match.venue}</small>
+                  </td>
+                  <td>
+                    {match.kickoff_at
+                      ? formatMatchTime(match.kickoff_at)
+                      : 'Noch nicht terminiert'}
+                  </td>
+                  <td>{matchScore(match) ?? '–'}</td>
+                  <td>
+                    {match.cancelled
+                      ? 'Ausgeblendet'
+                      : match.kickoff_at === null
+                        ? 'Noch nicht terminiert'
+                        : match.id === nextId
+                          ? 'Nächstes Spiel'
+                          : now >= Date.parse(match.kickoff_at)
+                            ? 'Vergangen'
+                            : 'Geplant'}
+                  </td>
+                  <td>
+                    <div class="admin-page-actions">
+                      <a
+                        class="admin-secondary-button admin-icon-action"
+                        href={`/admin/spielplan/${match.id}`}
+                        aria-label={`${match.opponent} bearbeiten`}
+                      >
+                        <Icon name="edit" size={20} />
+                      </a>
+                      <a
+                        class="admin-danger-button admin-icon-action"
+                        href={`/admin/spielplan/${match.id}/loeschen`}
+                        aria-label={`${match.opponent} löschen`}
+                        data-admin-delete
+                        data-item-id={match.id}
+                        data-item-name={`${match.is_home ? 'FC Example – ' + match.opponent : match.opponent + ' – FC Example'}`}
+                      >
+                        <Icon name="trash" size={20} />
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div class="admin-empty">
+            <strong>Noch keine Spiele eingetragen.</strong>
+            <p>Nutze „Spiel hinzufügen“, um das erste Spiel anzulegen.</p>
+          </div>
+        )}
+      </section>
+    )
+  }
+  <AdminDeleteDialog
+    eyebrow="Mannschaft"
+    description="Das Spiel wird dauerhaft aus dem Spielplan entfernt. Diese Aktion kann nicht rückgängig gemacht werden."
+    confirmLabel="Spiel endgültig löschen"
+  />
+</AdminLayout>
+
+<style>
+  h2 {
+    margin-block: 32px 16px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+</style>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>(
+    '[data-admin-delete-dialog]',
+  );
+  const title = dialog?.querySelector<HTMLElement>('[data-admin-delete-title]');
+  const form = dialog?.querySelector<HTMLFormElement>(
+    '[data-admin-delete-form]',
+  );
+  const confirmInput = dialog?.querySelector<HTMLInputElement>(
+    '[data-admin-delete-confirm]',
+  );
+
+  document
+    .querySelectorAll<HTMLAnchorElement>('[data-admin-delete]')
+    .forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!dialog || !title || !form || !confirmInput) return;
+        title.textContent = `${link.dataset.itemName} endgültig löschen?`;
+        form.action = link.getAttribute('href') ?? '';
+        confirmInput.value = link.dataset.itemId ?? '';
+        dialog.showModal();
+      });
+    });
+
+  dialog
+    ?.querySelector('[data-admin-delete-cancel]')
+    ?.addEventListener('click', () => dialog.close());
+</script>

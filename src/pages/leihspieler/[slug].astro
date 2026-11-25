@@ -1,0 +1,7 @@
+---
+// All lists share one canonical player profile, including its charts and status.
+return Astro.redirect(
+  `/kader/${encodeURIComponent(Astro.params.slug ?? '')}`,
+  301,
+);
+---

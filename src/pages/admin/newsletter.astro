@@ -1,0 +1,507 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAdmin, isSameOrigin } from '../../lib/admin';
+import { logAdminAction } from '../../lib/audit-log';
+import { moderationPage } from '../../lib/moderation';
+import {
+  NEWSLETTER_LIMITS,
+  defaultNewsletterSettings,
+  formatSubscriberTimestamp,
+  mapSettingsRow,
+  newsletterUnsubscribeUrl,
+  parseNewsletterSettings,
+  purgeStaleSubscribers,
+  renderIssueMail,
+  subscriberStatusLabel,
+  type NewsletterSettings,
+  type SubscriberStatus,
+} from '../../lib/newsletter';
+import { sendNoReplyMail } from '../../lib/notifications';
+import { createAdminAuthClient } from '../../lib/supabase';
+
+const { user } = await getAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+
+// Abonnenten-Adressen sind per RLS nicht für authentifizierte Nutzer
+// erreichbar; die Redaktion arbeitet deshalb mit dem Service-Role-Client.
+const admin = createAdminAuthClient();
+
+const SUBSCRIBER_PAGE_SIZE = 50;
+
+let error = '';
+const params = Astro.url.searchParams;
+const page = moderationPage(params.get('seite'));
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const action = form.get('action');
+    if (action === 'save-settings') {
+      const { settings, error: parseError } = parseNewsletterSettings(form);
+      if (!settings) {
+        error = parseError ?? 'Die Eingaben sind ungültig.';
+      } else {
+        const { error: dbError } = await admin
+          .from('newsletter_settings')
+          .upsert({
+            id: true,
+            ...settings,
+            updated_at: new Date().toISOString(),
+          });
+        if (dbError) {
+          console.error('newsletter.settings_save_failed', dbError);
+          error = 'Die Einstellungen konnten nicht gespeichert werden.';
+        } else {
+          logAdminAction({
+            action: 'update',
+            entity: 'newsletter_settings',
+            actorEmail: user.email ?? undefined,
+          });
+          return Astro.redirect('/admin/newsletter?gespeichert=settings', 303);
+        }
+      }
+    } else if (action === 'send-issue') {
+      const subject = String(form.get('subject') ?? '').trim();
+      const body = String(form.get('body') ?? '')
+        .replace(/\r/g, '')
+        .trim();
+      if (subject.length < 5 || subject.length > 200) {
+        error = 'Der Betreff muss zwischen 5 und 200 Zeichen lang sein.';
+      } else if (body.length < 10 || body.length > 5000) {
+        error =
+          'Der Text muss zwischen 10 und 5000 Zeichen lang sein. Links (z. B. zu einem neuen Beitrag) kannst du einfach in den Text schreiben.';
+      } else {
+        const { data: subscribers, error: listError } = await admin
+          .from('newsletter_subscribers')
+          .select('id, email')
+          .eq('status', 'active')
+          .order('created_at')
+          .limit(1000);
+        if (listError) {
+          console.error('newsletter.issue_list_failed', listError);
+          error = 'Die Abonnenten konnten nicht geladen werden.';
+        } else if (!subscribers?.length) {
+          error = 'Es gibt noch keine bestätigten Abonnenten.';
+        } else {
+          let sent = 0;
+          let failed = 0;
+          // Versand in kleinen Paketen, damit einzelne SMTP-Fehler nicht den
+          // ganzen Lauf abbrechen und der Server nicht blockiert.
+          const batchSize = 5;
+          for (let index = 0; index < subscribers.length; index += batchSize) {
+            await Promise.all(
+              subscribers.slice(index, index + batchSize).map(async (sub) => {
+                const unsubscribeUrl = newsletterUnsubscribeUrl(sub.id);
+                if (!unsubscribeUrl) {
+                  failed += 1;
+                  return;
+                }
+                const sentOk = await sendNoReplyMail({
+                  to: sub.email,
+                  ...renderIssueMail({
+                    to: sub.email,
+                    subject,
+                    body,
+                    unsubscribeUrl,
+                  }),
+                });
+                if (sentOk) sent += 1;
+                else failed += 1;
+              }),
+            );
+          }
+          logAdminAction({
+            action: 'create',
+            entity: 'newsletter_issue',
+            actorEmail: user.email ?? undefined,
+            detail: `subject=${subject.slice(0, 80)} sent=${sent} failed=${failed}`,
+          });
+          const query = new URLSearchParams({ gesendet: String(sent) });
+          if (failed) query.set('fehler', String(failed));
+          return Astro.redirect(`/admin/newsletter?${query}`, 303);
+        }
+      }
+    } else if (action === 'delete-subscriber') {
+      const id = String(form.get('id') ?? '');
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          id,
+        )
+      ) {
+        error = 'Ungültiger Eintrag.';
+      } else {
+        const { error: deleteError } = await admin
+          .from('newsletter_subscribers')
+          .delete()
+          .eq('id', id);
+        if (deleteError) {
+          console.error('newsletter.subscriber_delete_failed', deleteError);
+          error = 'Der Eintrag konnte nicht gelöscht werden.';
+        } else {
+          logAdminAction({
+            action: 'delete',
+            entity: 'newsletter_subscriber',
+            entityId: id,
+            actorEmail: user.email ?? undefined,
+          });
+          const redirect = new URLSearchParams({ gespeichert: 'delete' });
+          if (page > 1) redirect.set('seite', String(page));
+          return Astro.redirect(`/admin/newsletter?${redirect}`, 303);
+        }
+      }
+    } else {
+      error = 'Ungültige Aktion.';
+    }
+  }
+}
+
+const settingsResult = await admin
+  .from('newsletter_settings')
+  .select('*')
+  .eq('id', true)
+  .maybeSingle();
+if (settingsResult.error)
+  console.error('newsletter.settings_load_failed', settingsResult.error);
+const settings: NewsletterSettings = settingsResult.data
+  ? mapSettingsRow(settingsResult.data)
+  : defaultNewsletterSettings();
+
+// Abgelaufene Einträge bereinigen (unbestätigt nach 30 Tagen, abgemeldete
+// spätestens 3 Jahre) – Speicherdauer wie in der Datenschutzerklärung.
+await purgeStaleSubscribers(admin);
+
+const {
+  data: subscribers,
+  count: subscriberCount,
+  error: subscribersError,
+} = await admin
+  .from('newsletter_subscribers')
+  .select('id, email, status, created_at, confirmed_at, unsubscribed_at', {
+    count: 'exact',
+  })
+  .order('created_at', { ascending: false })
+  .range((page - 1) * SUBSCRIBER_PAGE_SIZE, page * SUBSCRIBER_PAGE_SIZE - 1);
+if (subscribersError)
+  console.error('newsletter.subscribers_load_failed', subscribersError);
+
+const countFor = async (status: SubscriberStatus) => {
+  const { count, error: countError } = await admin
+    .from('newsletter_subscribers')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', status);
+  if (countError) console.error('newsletter.count_failed', countError);
+  return count ?? 0;
+};
+const counts = {
+  active: await countFor('active'),
+  pending: await countFor('pending'),
+  unsubscribed: await countFor('unsubscribed'),
+};
+
+const saved = params.get('gespeichert');
+const sentCount = params.get('gesendet');
+const failedCount = params.get('fehler');
+---
+
+<AdminLayout title="Newsletter" userEmail={user.email ?? 'Redaktion'}>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Community · Newsletter</span>
+      <h1>Newsletter</h1>
+      <p>
+        Texte des Willkommens-Modals steuern, Newsletter versenden und
+        Abonnenten verwalten. Die Abmeldung aus jeder Mail funktioniert mit
+        einem Klick (signierter Link, ohne Anmeldung).
+      </p>
+    </div>
+  </header>
+
+  {
+    error && (
+      <p role="alert" class="admin-alert admin-alert--error">
+        {error}
+      </p>
+    )
+  }
+  {
+    !error && saved === 'settings' && (
+      <p role="status" class="admin-alert admin-alert--success">
+        Die Modal-Texte wurden gespeichert.
+      </p>
+    )
+  }
+  {
+    !error && saved === 'delete' && (
+      <p role="status" class="admin-alert admin-alert--success">
+        Der Abonnent wurde gelöscht (z. B. auf Löschungswunsch nach DSGVO).
+      </p>
+    )
+  }
+  {
+    !error && sentCount && (
+      <p role="status" class="admin-alert admin-alert--success">
+        Newsletter an {sentCount}{' '}
+        {Number(sentCount) === 1 ? 'Abonnent' : 'Abonnenten'} versendet
+        {failedCount ? `, ${failedCount} fehlgeschlagen` : ''}.
+      </p>
+    )
+  }
+
+  <section class="word-section" aria-labelledby="modal-title">
+    <h2 id="modal-title">Willkommens-Modal</h2>
+    <p>
+      Diese Texte erscheinen Besuchern beim frischen Einstieg in den Blog. Das
+      Modal öffnet sich nur einmal pro Sitzung und nicht beim Wechsel auf eine
+      andere Seite; es kann jederzeit geschlossen werden.
+    </p>
+    <form method="post" class="word-form">
+      <label class="reader-checkbox">
+        <input
+          type="checkbox"
+          name="modal_enabled"
+          checked={settings.modalEnabled}
+        />
+        Willkommens-Modal auf den öffentlichen Seiten anzeigen
+      </label>
+      <label class="reader-checkbox">
+        <input
+          type="checkbox"
+          name="newsletter_enabled"
+          checked={settings.newsletterEnabled}
+        />
+        Newsletter-Anmeldung im Modal anbieten
+      </label>
+      <label class="field">
+        <span>
+          Überschrift<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input
+          name="heading"
+          required
+          maxlength={NEWSLETTER_LIMITS.heading}
+          value={settings.heading}
+        />
+      </label>
+      <label class="field">
+        <span>
+          Einleitungstext<span class="required-marker" aria-hidden="true"
+          ></span>
+          <small>Leerzeile trennt Absätze.</small>
+        </span>
+        <textarea
+          name="intro"
+          required
+          rows="6"
+          maxlength={NEWSLETTER_LIMITS.intro}>{settings.intro}</textarea
+        >
+      </label>
+      <label class="field">
+        <span>
+          Beschriftung E-Mail-Feld<span
+            class="required-marker"
+            aria-hidden="true"></span>
+        </span>
+        <input
+          name="email_label"
+          required
+          maxlength={NEWSLETTER_LIMITS.emailLabel}
+          value={settings.emailLabel}
+        />
+      </label>
+      <label class="field">
+        <span>Platzhalter E-Mail-Feld</span>
+        <input
+          name="email_placeholder"
+          maxlength={NEWSLETTER_LIMITS.emailPlaceholder}
+          value={settings.emailPlaceholder}
+        />
+      </label>
+      <label class="field">
+        <span>
+          Button-Text<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input
+          name="submit_label"
+          required
+          maxlength={NEWSLETTER_LIMITS.submitLabel}
+          value={settings.submitLabel}
+        />
+      </label>
+      <label class="field">
+        <span>
+          Datenschutz-Hinweis unter dem Formular<span
+            class="required-marker"
+            aria-hidden="true"></span>
+        </span>
+        <textarea
+          name="privacy_note"
+          required
+          rows="4"
+          maxlength={NEWSLETTER_LIMITS.privacyNote}
+          >{settings.privacyNote}</textarea
+        >
+      </label>
+      <label class="field">
+        <span>
+          Erfolgsmeldung nach der Anmeldung<span
+            class="required-marker"
+            aria-hidden="true"></span>
+        </span>
+        <textarea
+          name="success_message"
+          required
+          rows="3"
+          maxlength={NEWSLETTER_LIMITS.successMessage}
+          >{settings.successMessage}</textarea
+        >
+      </label>
+      <button
+        class="admin-primary-button"
+        type="submit"
+        name="action"
+        value="save-settings">Texte speichern</button
+      >
+    </form>
+  </section>
+
+  <section class="word-section" aria-labelledby="send-title">
+    <h2 id="send-title">Newsletter versenden</h2>
+    <p>
+      Geht an alle <strong>{counts.active} bestätigte Abonnenten</strong> über das
+      No-Reply-Postfach. Jede Mail enthält automatisch einen Ein-Klick-Abmeldelink
+      (plus List-Unsubscribe-Header), den die Empfänger ohne Anmeldung nutzen können.
+      {
+        counts.pending > 0 &&
+          ` ${counts.pending} Anmeldungen warten noch auf die Bestätigung und erhalten nichts.`
+      }
+    </p>
+    <form method="post" class="word-form">
+      <label class="field">
+        <span>
+          Betreff<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input name="subject" required minlength="5" maxlength="200" />
+      </label>
+      <label class="field">
+        <span>
+          Text<span class="required-marker" aria-hidden="true"></span>
+          <small
+            >Leerzeile trennt Absätze. Links zu Beiträgen einfach als URL in den
+            Text schreiben.</small
+          >
+        </span>
+        <textarea name="body" required minlength="10" rows="8" maxlength="5000"
+        ></textarea>
+      </label>
+      <button
+        class="admin-primary-button"
+        type="submit"
+        name="action"
+        value="send-issue"
+        >An {counts.active}
+        {counts.active === 1 ? 'Abonnent' : 'Abonnenten'} senden</button
+      >
+    </form>
+  </section>
+
+  <section class="word-section" aria-labelledby="subs-title">
+    <h2 id="subs-title">Abonnenten</h2>
+    <p>
+      {counts.active} aktiv · {counts.pending} ausstehend ·{' '}
+      {counts.unsubscribed} abgemeldet. Abgemeldete Adressen bleiben mit Zeitstempel
+      gespeichert, damit sie nicht versehentlich erneut angeschrieben werden; beim
+      Öffnen dieser Seite werden unbestätigte Anmeldungen nach 30 Tagen und abgemeldete
+      Adressen spätestens drei Jahre nach der Abmeldung automatisch gelöscht (siehe
+      Datenschutzerklärung). Auf Wunsch löschst du einen Eintrag hier jederzeit manuell
+      (z. B. nach einem DSGVO-Löschungsersuchen).
+    </p>
+    {
+      subscribersError ? (
+        <p role="alert">
+          Die Abonnentenliste konnte nicht geladen werden. Bitte lade die Seite
+          neu.
+        </p>
+      ) : !subscribers?.length ? (
+        <p>Noch keine Anmeldungen.</p>
+      ) : (
+        <section class="admin-table-wrap" aria-label="Abonnentenliste">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>E-Mail-Adresse</th>
+                <th>Status</th>
+                <th>Angemeldet</th>
+                <th>Bestätigt</th>
+                <th>Abgemeldet</th>
+                <th>
+                  <span class="sr-only">Aktion</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {subscribers.map((subscriber) => (
+                <tr>
+                  <td>
+                    <bdi>{subscriber.email}</bdi>
+                  </td>
+                  <td>{subscriberStatusLabel(subscriber.status)}</td>
+                  <td>{formatSubscriberTimestamp(subscriber.created_at)}</td>
+                  <td>{formatSubscriberTimestamp(subscriber.confirmed_at)}</td>
+                  <td>
+                    {formatSubscriberTimestamp(subscriber.unsubscribed_at)}
+                  </td>
+                  <td>
+                    <form method="post">
+                      <input type="hidden" name="id" value={subscriber.id} />
+                      {page > 1 && (
+                        <input type="hidden" name="seite" value={page} />
+                      )}
+                      <button
+                        class="admin-danger-button"
+                        type="submit"
+                        name="action"
+                        value="delete-subscriber"
+                        aria-label={`Abonnent ${subscriber.email} Löschen`}
+                      >
+                        Löschen
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )
+    }
+    {
+      !subscribersError && (subscriberCount ?? 0) > SUBSCRIBER_PAGE_SIZE && (
+        <nav aria-label="Seiten der Abonnentenliste">
+          {page > 1 && (
+            <a href={`/admin/newsletter?seite=${page - 1}`}>Neuere Einträge</a>
+          )}
+          {(subscriberCount ?? 0) > page * SUBSCRIBER_PAGE_SIZE && (
+            <a href={`/admin/newsletter?seite=${page + 1}`}>Ältere Einträge</a>
+          )}
+          <span>
+            Seite {page} von{' '}
+            {Math.max(
+              1,
+              Math.ceil((subscriberCount ?? 0) / SUBSCRIBER_PAGE_SIZE),
+            )}
+          </span>
+        </nav>
+      )
+    }
+    <p>
+      <a href="/api/admin/newsletter/export" download>
+        Abonnenten als CSV exportieren
+      </a>{' '}
+      (maximal 5.000 Einträge; der Export wird im Audit-Log protokolliert).
+    </p>
+  </section>
+</AdminLayout>

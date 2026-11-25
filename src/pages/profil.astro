@@ -1,0 +1,70 @@
+---
+import { isAdmin } from '../lib/admin';
+import ReaderSettings from '../components/ReaderSettings.astro';
+import { getOwnComments, profileCommentsPage } from '../lib/profile-comments';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const user = Astro.locals.readerUser;
+const modalRequest =
+  Astro.request.method === 'GET' &&
+  Astro.url.searchParams.get('ansicht') === 'modal';
+
+if (!user) {
+  if (modalRequest) {
+    // Das Profil-Modal erwartet ein Fragment und zeigt selbst eine Rückmeldung.
+    return new Response('Nicht angemeldet.', {
+      status: 401,
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  }
+  return Astro.redirect('/anmelden');
+}
+if (!modalRequest) {
+  // Der Profilbereich ist kein eigener Seitenaufruf mehr, sondern das Modal.
+  return Astro.redirect('/');
+}
+
+const factorResult = await Astro.locals.supabase!.auth.mfa.listFactors();
+const factors =
+  factorResult.data?.totp.filter((factor) => factor.status === 'verified') ??
+  [];
+const { data: profile } = await Astro.locals
+  .supabase!.from('reader_profiles')
+  .select('username, avatar, avatar_url, is_ghost')
+  .eq('id', user.id)
+  .maybeSingle();
+// Angaben für die Bearbeitung im Modal; ohne Profilzeile gibt es auch keine.
+const { data: details } = profile
+  ? await Astro.locals
+      .supabase!.from('reader_details')
+      .select('full_name, birth_date')
+      .eq('id', user.id)
+      .maybeSingle()
+  : { data: null };
+const commentsPage = profileCommentsPage(
+  Astro.url.searchParams.get('kommentarseite'),
+);
+const commentsResult = await getOwnComments(
+  Astro.locals.supabase!,
+  user.id,
+  commentsPage,
+);
+// Benachrichtigungs-Einstellungen pro Kategorie für den Einstellungsbereich.
+const { data: notificationPrefs } = await Astro.locals
+  .supabase!.from('article_notification_preferences')
+  .select('category, email_enabled, in_app_enabled')
+  .eq('user_id', user.id);
+---
+
+<ReaderSettings
+  profile={profile}
+  details={details}
+  email={user.email}
+  editor={isAdmin(user)}
+  factors={factors}
+  comments={commentsResult.data ?? []}
+  commentsCount={commentsResult.count ?? 0}
+  commentsPage={commentsPage}
+  commentsError={Boolean(commentsResult.error)}
+  notificationPrefs={notificationPrefs ?? []}
+/>

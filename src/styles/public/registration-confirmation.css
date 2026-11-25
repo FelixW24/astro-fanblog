@@ -1,0 +1,194 @@
+/* Confirmation is a stable card, not a transient notification. */
+.reader-panel--auth.reader-panel--confirmation {
+  width: min(100%, 600px);
+  min-height: 0;
+  padding: clamp(24px, 4vw, 40px);
+  border-radius: var(--radius-heropanel);
+  box-shadow: none;
+}
+.reader-panel--confirmation::before {
+  display: none;
+}
+.reader-panel--confirmation .registration-confirmation {
+  margin: 0;
+}
+.registration-confirmation__mark {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--spacing-20);
+  place-items: center;
+  color: var(--reader-accent);
+  background: var(--reader-surface-soft);
+  border: 1px solid var(--reader-border);
+  border-radius: var(--radius-cards);
+}
+.reader-panel--confirmation .registration-confirmation .overline {
+  font-size: var(--text-caption);
+  letter-spacing: 0.12em;
+}
+.site-content .reader-panel--confirmation .registration-confirmation h1 {
+  margin: var(--spacing-12) 0 var(--spacing-16);
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  overflow-wrap: normal;
+}
+.reader-panel--confirmation .registration-confirmation [role='status'] {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--reader-muted);
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+.registration-confirmation .registration-confirmation__steps {
+  display: grid;
+  gap: var(--spacing-20);
+  margin-block: var(--spacing-28);
+  padding: var(--spacing-28) 0;
+  border-block: 1px solid var(--reader-border);
+  list-style: none;
+}
+.registration-confirmation__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+}
+.registration-confirmation__number {
+  display: grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--reader-border);
+  border-radius: 50%;
+  color: var(--color-ink-black);
+  background: var(--reader-surface-soft);
+  font-size: var(--text-body-sm);
+  font-weight: 700;
+}
+.registration-confirmation h2 {
+  margin: 0;
+  color: var(--color-ink-black);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  font-weight: 700;
+}
+.reader-panel--confirmation .registration-confirmation li p,
+.reader-panel--confirmation .registration-confirmation__help p {
+  margin: var(--spacing-4) 0 0;
+  color: var(--reader-muted);
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}
+.registration-confirmation .registration-confirmation__help {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  color: var(--reader-muted);
+  background: var(--reader-surface-soft);
+  border: 1px solid var(--reader-border);
+  border-radius: var(--radius-cards);
+}
+.registration-confirmation__help > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.registration-confirmation__actions {
+  margin-top: var(--spacing-28);
+}
+.reader-panel--confirmation .registration-confirmation__actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--spacing-12) var(--spacing-20);
+  border: 1px solid var(--reader-accent);
+  border-radius: var(--radius-buttons);
+  background: var(--reader-accent);
+  color: var(--reader-on-accent);
+  font-size: var(--text-body);
+  font-weight: 600;
+  text-decoration: none;
+}
+.reader-panel--confirmation .registration-confirmation__actions a:hover {
+  background: var(--reader-accent-hover);
+  border-color: var(--reader-accent-hover);
+}
+.reader-panel--confirmation
+  .registration-confirmation__actions
+  a:focus-visible {
+  outline: 2px solid var(--color-ink-black);
+  outline-offset: 4px;
+}
+@media (max-width: 380px) {
+  .registration-confirmation__steps li {
+    gap: var(--spacing-12);
+  }
+  .registration-confirmation__mark {
+    width: 56px;
+    height: 56px;
+  }
+}
+/* Adresse der Registrierung als hervorgehobener Baustein im Intro. */
+.registration-confirmation__email {
+  padding: 1px 10px 2px;
+  color: var(--color-ink-black);
+  background: var(--reader-surface-soft);
+  border: 1px solid var(--reader-border);
+  border-radius: 999px;
+  font-size: 0.95em;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+/* Erneuter Versand der Bestätigungsmail: einmal pro Minute, der Countdown
+   zeigt die verbleibende Zeit. */
+.registration-confirmation__resend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin-top: var(--spacing-16);
+}
+.registration-confirmation__resend button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-height: 40px;
+  padding: var(--spacing-8) var(--spacing-16);
+  color: var(--color-ink-black);
+  background: var(--color-canvas);
+  border: 1px solid var(--reader-border);
+  border-radius: var(--radius-buttons);
+  font-size: var(--text-body-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.registration-confirmation__resend button:hover:not(:disabled) {
+  color: var(--reader-accent);
+  border-color: var(--reader-accent);
+}
+.registration-confirmation__resend button:focus-visible {
+  outline: 2px solid var(--color-ink-black);
+  outline-offset: 4px;
+}
+.registration-confirmation__resend button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.registration-confirmation__resend button svg {
+  flex: 0 0 auto;
+}
+.registration-confirmation__resend button [data-resend-label] {
+  font-variant-numeric: tabular-nums;
+}
+.registration-confirmation__resend-hint {
+  margin: 0;
+  color: var(--reader-muted);
+  font-size: var(--text-body-sm);
+}

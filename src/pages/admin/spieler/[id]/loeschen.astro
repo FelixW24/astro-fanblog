@@ -1,0 +1,51 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { preparePlayerDeletion } from '../../../../lib/admin-player-delete';
+
+const result = await preparePlayerDeletion(
+  { request: Astro.request, cookies: Astro.cookies },
+  Astro.params.id,
+);
+if (result instanceof Response) return result;
+const { player, user, backUrl, error, status } = result;
+Astro.response.status = status;
+---
+
+<AdminLayout title="Spielerprofil löschen" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <a class="admin-back" href={backUrl}>← Spielerprofile</a>
+      <span class="admin-eyebrow">Spieler #{player.id}</span>
+      <h1>Spielerprofil löschen</h1>
+    </div>
+  </header>
+  <section
+    class="editor-panel danger-panel"
+    aria-labelledby="delete-player-heading"
+  >
+    <h2 id="delete-player-heading">{player.name} endgültig löschen?</h2>
+    <p>
+      Das Spielerprofil und alle zugehörigen Diagramme werden dauerhaft
+      gelöscht. Das öffentliche Profil ist danach nicht mehr erreichbar. Diese
+      Aktion kann nicht rückgängig gemacht werden.
+    </p>
+    {
+      error && (
+        <div class="admin-alert admin-alert--error" role="alert">
+          {error}
+        </div>
+      )
+    }
+    <form method="post" class="admin-page-actions">
+      <a class="admin-secondary-button" href={backUrl}>Abbrechen</a>
+      <button
+        class="admin-danger-button"
+        type="submit"
+        name="confirm_delete"
+        value={player.id}
+      >
+        Spieler endgültig löschen
+      </button>
+    </form>
+  </section>
+</AdminLayout>

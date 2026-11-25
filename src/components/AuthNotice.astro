@@ -1,0 +1,106 @@
+---
+const next = encodeURIComponent(`${Astro.url.pathname}#kommentare`);
+---
+
+<aside
+  class="auth-notice"
+  data-auth-notice
+  data-notification
+  hidden
+  aria-label="Anmeldung erforderlich"
+>
+  <div role="status" aria-live="polite" aria-atomic="true">
+    <p>
+      <a href={`/anmelden?weiter=${next}`}>Melde dich an</a> oder <a
+        href={`/registrieren?weiter=${next}`}>erstelle ein Konto</a
+      >, um mitzumachen.
+    </p>
+  </div>
+  <button type="button" aria-label="Hinweis schließen" data-auth-notice-close
+    >×</button
+  >
+</aside>
+<script>
+  const notice = document.querySelector<HTMLElement>('[data-auth-notice]');
+  document.addEventListener('click', (event) => {
+    if (
+      !(event.target instanceof Element) ||
+      !event.target.closest('[data-auth-required]') ||
+      !notice
+    )
+      return;
+    event.preventDefault();
+    notice.hidden = false;
+  });
+  document
+    .querySelector('[data-auth-notice-close]')
+    ?.addEventListener('click', () => {
+      if (notice) notice.hidden = true;
+    });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && notice) notice.hidden = true;
+  });
+</script>
+<style>
+  .auth-notice {
+    position: fixed;
+    z-index: 100;
+    inset: 20px 20px auto auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: min(440px, calc(100vw - 32px));
+    padding: 18px 16px 18px 20px;
+    background: var(--color-canvas);
+    color: var(--color-ink-black);
+    border: 1px solid var(--color-fog);
+    border-left: 3px solid var(--color-blueprint-blue);
+    border-radius: 12px;
+    box-shadow: 0 12px 36px rgb(0 0 0 / 16%);
+    font-size: 14px;
+  }
+  .auth-notice[hidden] {
+    display: none;
+  }
+  .auth-notice p {
+    margin: 0;
+  }
+  .auth-notice a {
+    color: var(--color-blueprint-blue);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .auth-notice button {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-slate);
+    font-size: 24px;
+    cursor: pointer;
+  }
+  .auth-notice button:hover {
+    background: var(--surface-interactive-hover);
+  }
+  .auth-notice :focus-visible {
+    outline: 2px solid var(--color-blueprint-blue);
+    outline-offset: 3px;
+  }
+  @media (max-width: 600px) {
+    .auth-notice {
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .auth-notice > div {
+      min-width: 0;
+      flex: 1;
+    }
+    .auth-notice button {
+      width: 44px;
+      height: 44px;
+    }
+  }
+</style>

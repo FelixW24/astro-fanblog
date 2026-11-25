@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="title">
+  <title>Stadion bei Nacht (neutral)</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1124"/>
+      <stop offset="0.7" stop-color="#1b2140"/>
+      <stop offset="1" stop-color="#232a4d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <g stroke="#3a4370" stroke-width="6">
+    <line x1="220" y1="620" x2="220" y2="180"/>
+    <line x1="560" y1="620" x2="560" y2="120"/>
+    <line x1="1040" y1="620" x2="1040" y2="120"/>
+    <line x1="1380" y1="620" x2="1380" y2="180"/>
+  </g>
+  <g fill="url(#glow)">
+    <circle cx="220" cy="180" r="120"/>
+    <circle cx="560" cy="120" r="140"/>
+    <circle cx="1040" cy="120" r="140"/>
+    <circle cx="1380" cy="180" r="120"/>
+  </g>
+  <g fill="#f5f6fa">
+    <rect x="190" y="160" width="60" height="40" rx="8"/>
+    <rect x="530" y="100" width="60" height="40" rx="8"/>
+    <rect x="1010" y="100" width="60" height="40" rx="8"/>
+    <rect x="1350" y="160" width="60" height="40" rx="8"/>
+  </g>
+  <path d="M0 640 Q 800 520 1600 640 L1600 900 L0 900 Z" fill="#151a33"/>
+  <path d="M0 700 Q 800 590 1600 700 L1600 900 L0 900 Z" fill="#1e2547"/>
+  <rect x="0" y="760" width="1600" height="140" fill="#101430"/>
+  <g fill="#2c355f">
+    <rect x="120" y="700" width="1360" height="14" rx="7"/>
+    <rect x="200" y="730" width="1200" height="12" rx="6"/>
+  </g>
+  <rect x="700" y="790" width="200" height="110" rx="6" fill="none" stroke="#3d4880" stroke-width="6"/>
+  <line x1="800" y1="790" x2="800" y2="900" stroke="#3d4880" stroke-width="6"/>
+</svg>

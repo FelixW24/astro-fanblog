@@ -1,0 +1,170 @@
+---
+import { formats, templates, createDesign } from '../../lib/social-design';
+import '../../styles/admin/social-editor.css';
+const initial = createDesign();
+---
+
+<section class="social-editor" data-social-editor>
+  <form class="social-controls" aria-label="Beitrag gestalten">
+    <h2>Dein Design</h2>
+    <div class="social-field">
+      <label for="social-template">Vorlage</label><select
+        id="social-template"
+        name="template"
+        >{
+          Object.entries(templates).map(([value, item]) => (
+            <option value={value}>{item.label}</option>
+          ))
+        }</select>
+    </div>
+    <div class="social-field">
+      <label for="social-format">Format</label><select
+        id="social-format"
+        name="format"
+        >{
+          Object.entries(formats).map(([value, item]) => (
+            <option value={value}>{item.label}</option>
+          ))
+        }</select>
+    </div>
+    <div class="social-field">
+      <label for="social-logo">Markenlogo</label><select
+        id="social-logo"
+        name="logo"
+        ><option value="horizontal">Astro Fanblog · horizontal</option><option
+          value="compact">Astro Fanblog · kompakt</option
+        ><option value="symbol">Astro Fanblog · Symbol</option></select>
+    </div>
+    <fieldset>
+      <legend>Text</legend>
+      <label
+        >Rubrik<input
+          name="label"
+          maxlength="40"
+          value={initial.label}
+        /></label
+      >
+      <div class="social-field">
+        <label for="social-title">Überschrift</label><textarea
+          id="social-title"
+          name="title"
+          maxlength="180"
+          rows="3">{initial.title}</textarea>
+      </div>
+      <div class="social-field">
+        <label for="social-subtitle">Unterzeile / Quelle</label><textarea
+          id="social-subtitle"
+          name="subtitle"
+          maxlength="240"
+          rows="2">{initial.subtitle}</textarea>
+      </div>
+      <label
+        >Fußzeile<input
+          name="footer"
+          maxlength="60"
+          value={initial.footer}
+        /></label
+      >
+      <label
+        >Schriftgröße<input
+          name="fontSize"
+          type="range"
+          min="40"
+          max="110"
+          value={initial.fontSize}
+        /></label
+      >
+      <label
+        >Textposition<input
+          name="textY"
+          type="range"
+          min="30"
+          max="58"
+          value={initial.textY}
+        /></label
+      >
+    </fieldset>
+    <fieldset>
+      <legend>Hintergrundbild</legend>
+      <label
+        >Bild auswählen<input
+          type="file"
+          data-image
+          accept="image/png,image/jpeg,image/webp"
+        /></label
+      >
+      <p>
+        PNG, JPG oder WebP · maximal 5 MB. Bilder bleiben in deinem Browser.
+      </p>
+      <label
+        >Bildausschnitt horizontal<input
+          name="imageX"
+          type="range"
+          min="0"
+          max="100"
+          value="50"
+        /></label
+      >
+      <label
+        >Bildausschnitt vertikal<input
+          name="imageY"
+          type="range"
+          min="0"
+          max="100"
+          value="50"
+        /></label
+      >
+      <label
+        >Bildzoom<input
+          name="zoom"
+          type="range"
+          min="1"
+          max="3"
+          step="0.05"
+          value="1"
+        /></label
+      >
+      <button type="button" data-remove-image>Bild entfernen</button>
+    </fieldset>
+  </form>
+  <div class="social-workspace">
+    <div class="social-toolbar">
+      <button type="button" data-export class="admin-primary-button" disabled
+        >PNG herunterladen</button
+      >
+      <button type="button" data-save disabled>Entwurf speichern</button>
+      <label class="social-open"
+        >Entwurf öffnen<input
+          type="file"
+          data-open
+          accept="application/json,.json"
+        /></label
+      >
+    </div>
+    <p class="social-status" role="status" aria-live="polite" data-status>
+      Editor wird geladen …
+    </p>
+    <div class="social-stage">
+      <canvas
+        width="1080"
+        height="1080"
+        aria-label="Live-Vorschau des Social-Media-Beitrags"
+        role="img"
+        >Bitte aktiviere JavaScript, um den Editor zu verwenden.</canvas
+      >
+    </div>
+    <p class="social-hint">
+      Die Vorschau entspricht dem PNG-Export. Lange Texte werden automatisch
+      eingepasst. Speichere deinen Entwurf vor dem Verlassen als Datei – es gibt
+      keine automatische Speicherung.
+    </p>
+    <noscript
+      ><p>
+        Zum Gestalten und Herunterladen wird JavaScript benötigt.
+      </p></noscript
+    >
+  </div>
+</section>
+<script>
+  import '../../scripts/social-editor';
+</script>

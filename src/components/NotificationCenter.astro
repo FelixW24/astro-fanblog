@@ -1,0 +1,314 @@
+<div class="notification-stack" data-notification-stack></div>
+
+<script>
+  // Es gibt mehrere Stacks: einen globalen und je einen in modalen Dialogen
+  // (damit Toasts im offenen Modal in der Top-Layer sichtbar bleiben).
+  const stacks = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-notification-stack]'),
+  );
+  const globalStack =
+    stacks.find((stack) => !stack.closest('dialog')) ?? stacks[0];
+  const notifications = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-notification]'),
+  );
+  if (globalStack) {
+    for (const notification of notifications) globalStack.append(notification);
+  }
+
+  // Toasts bleiben laenger sichtbar als frueher; auf kleinen Screens
+  // (gleiche Breakpoint wie im CSS unten) deutlich laenger, weil der Toast
+  // dort unten am Rand steht und leichter uebersehen wird.
+  const desktopLifetime = 4000;
+  const mobileLifetime = 6000;
+  const mobileQuery = window.matchMedia('(max-width: 600px)');
+  const lifetime = () =>
+    mobileQuery.matches ? mobileLifetime : desktopLifetime;
+  // So viele Meldungen duerfen gleichzeitig sichtbar sein; darueber hinaus
+  // werden die aeltesten abgestuft und nach 1s entfernt.
+  const maxVisible = 4;
+
+  const manageStack = (stack: HTMLElement) => {
+    const lastMessages = new WeakMap<HTMLElement, string>();
+    const dismissTimers = new WeakMap<HTMLElement, number>();
+    let nextAllowedAt = 0;
+
+    // Meldung optisch abstufen und innerhalb von 1s entfernen.
+    const leave = (element: HTMLElement) => {
+      if (element.classList.contains('is-leaving')) return;
+      element.classList.add('is-leaving');
+      window.setTimeout(() => {
+        if (!element.classList.contains('is-leaving')) return;
+        element.hidden = true;
+        element.classList.remove('is-leaving');
+      }, 900);
+    };
+
+    const stopTimer = (element: HTMLElement) => {
+      const timer = dismissTimers.get(element);
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+        dismissTimers.delete(element);
+      }
+    };
+
+    const syncNotifications = () => {
+      const all = Array.from(
+        stack.querySelectorAll<HTMLElement>(':scope > [data-notification]'),
+      );
+      // Timer abgelaufener oder manuell geschlossener Meldungen aufraeumen.
+      for (const notification of all) {
+        if (notification.hidden) stopTimer(notification);
+      }
+
+      let visible = all.filter((notification) => !notification.hidden);
+
+      // Bereits gezeigte Meldung innerhalb des Fensters nicht erneut oeffnen
+      // (z. B. manuell geschlossene Hinweise). Neue Meldungen und die gerade
+      // sichtbaren (mit laufendem Timer) sind davon nicht betroffen.
+      for (const notification of visible) {
+        if (dismissTimers.has(notification)) continue;
+        const message = notification.textContent?.trim() ?? '';
+        const previousMessage = lastMessages.get(notification);
+        const updatedAlert =
+          notification.getAttribute('role') === 'alert' &&
+          previousMessage !== undefined &&
+          previousMessage !== message;
+        if (
+          lastMessages.has(notification) &&
+          Date.now() < nextAllowedAt &&
+          !updatedAlert
+        ) {
+          notification.hidden = true;
+        }
+      }
+
+      visible = visible.filter((notification) => !notification.hidden);
+
+      // Die neuesten maxVisible Meldungen bleiben gleichzeitig sichtbar;
+      // alle aelteren werden abgestuft und nach 1s entfernt.
+      const keep = visible.slice(-maxVisible);
+      for (const notification of visible) {
+        if (keep.includes(notification)) continue;
+        stopTimer(notification);
+        leave(notification);
+      }
+
+      // Jede sichtbare Meldung bekommt ihre eigene Frist (desktop 4s,
+      // mobil 6s).
+      for (const notification of keep) {
+        if (!lastMessages.has(notification))
+          lastMessages.set(
+            notification,
+            notification.textContent?.trim() ?? '',
+          );
+        if (!dismissTimers.has(notification)) {
+          const currentLifetime = lifetime();
+          dismissTimers.set(
+            notification,
+            window.setTimeout(() => {
+              dismissTimers.delete(notification);
+              notification.hidden = true;
+            }, currentLifetime),
+          );
+          nextAllowedAt = Date.now() + currentLifetime;
+        }
+      }
+    };
+
+    const observer = new MutationObserver(syncNotifications);
+    observer.observe(stack, {
+      attributes: true,
+      attributeFilter: ['hidden'],
+      childList: true,
+      subtree: true,
+    });
+    syncNotifications();
+
+    // Touch-Wischen nach links/rechts entfernt eine Meldung sofort.
+    // Vertikales Scrollen bleibt erhalten (touch-action: pan-y in CSS).
+    const swipeThreshold = 72;
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    );
+    let drag: {
+      el: HTMLElement;
+      pointerId: number;
+      startX: number;
+      startY: number;
+      dx: number;
+      active: boolean;
+    } | null = null;
+
+    stack.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'touch') return;
+      const el = (
+        event.target as HTMLElement
+      ).closest<HTMLElement>('[data-notification]');
+      if (!el || el.hidden) return;
+      drag = {
+        el,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dx: 0,
+        active: false,
+      };
+    });
+
+    stack.addEventListener('pointermove', (event) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.active) {
+        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+          drag.active = true;
+          drag.el.style.transition = 'none';
+        } else if (Math.abs(dy) > 8) {
+          drag = null; // vertikal: normales Scrollen, kein Swipe
+          return;
+        } else return;
+      }
+      drag.dx = dx;
+      drag.el.style.transform = `translateX(${dx}px)`;
+      drag.el.style.opacity = String(Math.max(0, 1 - Math.abs(dx) / 160));
+    });
+
+    const endDrag = (event: PointerEvent) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const { el, dx, active } = drag;
+      drag = null;
+      if (!active || Math.abs(dx) <= swipeThreshold) {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.opacity = '';
+        return;
+      }
+      if (reduceMotion.matches) {
+        el.hidden = true;
+        return;
+      }
+      // In Wischrichtung hinausfliegen, dann aus dem Stack nehmen.
+      el.style.transition = 'transform 180ms ease, opacity 180ms ease';
+      el.style.transform = `translateX(${Math.sign(dx) * (el.offsetWidth + 24)}px)`;
+      el.style.opacity = '0';
+      window.setTimeout(() => {
+        el.hidden = true;
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.opacity = '';
+      }, 190);
+    };
+    stack.addEventListener('pointerup', endDrag);
+    stack.addEventListener('pointercancel', endDrag);
+  };
+
+  for (const stack of stacks) manageStack(stack);
+</script>
+
+<style is:global>
+  .notification-stack {
+    --notification-hidden-transform: translateX(calc(100% + 20px));
+    position: fixed;
+    z-index: 200;
+    top: max(20px, env(safe-area-inset-top));
+    right: max(20px, env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(390px, calc(100vw - 32px));
+    max-height: calc(100dvh - 40px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    pointer-events: none;
+  }
+
+  .notification-stack[data-notification-stack] > [data-notification] {
+    --notification-accent: var(--color-blueprint-blue);
+    position: static;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    margin: 0;
+    padding: 14px 16px;
+    color: var(--color-ink-black);
+    background: var(--color-paper);
+    border: 1px solid var(--color-fog);
+    border-left: 3px solid var(--notification-accent);
+    border-radius: 12px;
+    box-shadow: 0 12px 36px rgb(0 0 0 / 16%);
+    font-size: 14px;
+    line-height: 1.5;
+    pointer-events: auto;
+    /* horizontales Wischen an den Swipe-Handler, vertikales Scrollen frei */
+    touch-action: pan-y;
+    animation: none;
+    transform: translateX(0);
+    transition:
+      transform var(--motion-slide-duration) var(--motion-slide-easing),
+      opacity var(--motion-slide-duration) var(--motion-slide-easing),
+      display var(--motion-slide-duration) allow-discrete;
+  }
+
+  .notification-stack[data-notification-stack] > [data-notification][hidden] {
+    display: none;
+    transform: var(--notification-hidden-transform);
+  }
+
+  .notification-stack[data-notification-stack]
+    > [data-notification].is-leaving {
+    opacity: 0;
+    transform: var(--notification-hidden-transform);
+    transition:
+      transform var(--motion-slide-duration) var(--motion-slide-easing),
+      opacity 900ms ease,
+      display var(--motion-slide-duration) allow-discrete;
+  }
+
+  @starting-style {
+    .notification-stack[data-notification-stack] > [data-notification] {
+      opacity: 0;
+      transform: var(--notification-hidden-transform);
+    }
+  }
+
+  .notification-stack[data-notification-stack] > .admin-alert--success,
+  .notification-stack[data-notification-stack]
+    > .markdown-import-status--success {
+    --notification-accent: var(--color-mint);
+  }
+
+  @media (max-width: 600px) {
+    .notification-stack {
+      --notification-hidden-transform: translateY(
+        calc(100% + max(12px, env(safe-area-inset-bottom)))
+      );
+      top: auto;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      width: auto;
+      max-height: calc(
+        100dvh - 96px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+      );
+      gap: 8px;
+    }
+
+    .notification-stack[data-notification-stack] > [data-notification] {
+      padding: 12px;
+      background: var(--color-canvas);
+      border-left: 1px solid var(--color-fog);
+      border-top: 3px solid var(--notification-accent);
+      border-radius: var(--radius-cards);
+      box-shadow: var(--shadow-floating);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .notification-stack[data-notification-stack] > [data-notification],
+    .notification-stack[data-notification-stack]
+      > [data-notification].is-leaving {
+      transition: none;
+    }
+  }
+</style>

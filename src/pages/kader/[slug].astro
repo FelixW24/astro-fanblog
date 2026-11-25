@@ -1,0 +1,326 @@
+---
+import PlayerStatusBadges from '../../components/PlayerStatusBadges.astro';
+import { currentLoan, type CurrentLoan } from '../../lib/player-availability';
+import EmptyState from '../../components/EmptyState.astro';
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon, { type IconName } from '../../components/Icon.astro';
+import PlayerChartHelp from '../../components/PlayerChartHelp.astro';
+import PlayerMatchHistory from '../../components/PlayerMatchHistory.astro';
+import PlayerPerformanceChart from '../../components/PlayerPerformanceChart.astro';
+import { playerStructuredData } from '../../lib/structured-data';
+import {
+  getPlayerMatchHistory,
+  hasMatchAppearances,
+  type PublicMatchHistoryEntry,
+} from '../../lib/player-match-history';
+import '../../styles/public/player-history.css';
+import {
+  getPlayer,
+  getPlayerCharts,
+  type PlayerChart,
+} from '../../lib/content';
+import {
+  calculateAge,
+  countryFlagCode,
+  formatMarketValue,
+  formatPlayerDate,
+  isRadarMetrics,
+  positionLabel,
+} from '../../lib/player';
+
+const slug = Astro.params.slug ?? '';
+let player;
+let loan: CurrentLoan | null = null;
+let charts: PlayerChart[] = [];
+let matchHistory: PublicMatchHistoryEntry[] = [];
+try {
+  player = await getPlayer(slug);
+  if (player) {
+    charts = await getPlayerCharts(player.id);
+    matchHistory = await getPlayerMatchHistory(player.id);
+    loan = currentLoan(player);
+  }
+} catch {
+  Astro.response.status = 503;
+}
+if (!player && Astro.response.status !== 503) return Astro.redirect('/404');
+
+// Spielhistorie nur anzeigen, wenn der Spieler mindestens ein Spiel für den
+// Verein anwesend war (Einsatz, Bank oder ausgewechselt).
+const showMatchHistory = hasMatchAppearances(matchHistory);
+
+const age = player ? calculateAge(player.date_of_birth) : null;
+const facts = player
+  ? [
+      {
+        label: 'Geboren',
+        value: `${formatPlayerDate(player.date_of_birth)}${age === null ? '' : ` (${age})`}`,
+        icon: 'calendar' as IconName,
+      },
+      {
+        label: 'Größe',
+        value: player.height_cm ? `${player.height_cm} cm` : 'Nicht hinterlegt',
+        icon: 'height' as IconName,
+      },
+      {
+        label: 'Starker Fuß',
+        value: player.preferred_foot ?? 'Nicht hinterlegt',
+        icon: 'boot' as IconName,
+      },
+      {
+        label: 'Nationalität',
+        value: player.nationality ?? 'Nicht hinterlegt',
+        icon: 'flag' as IconName,
+      },
+      {
+        label: 'Im Verein seit',
+        value: formatPlayerDate(player.joined_on),
+        icon: 'shield' as IconName,
+      },
+      {
+        label: 'Vertrag bis',
+        value: formatPlayerDate(player.contract_until),
+        icon: 'file' as IconName,
+      },
+    ]
+  : [];
+const nameParts = player?.name.trim().split(/\s+/) ?? [];
+const lastName = nameParts.pop() ?? '';
+const firstNames = nameParts.join(' ');
+---
+
+<BaseLayout
+  structuredData={player
+    ? playerStructuredData(
+        player,
+        new URL(Astro.url.pathname, Astro.url.origin).href,
+      )
+    : undefined}
+  title={player
+    ? `${player.name} | Spielerprofil | Astro Fanblog`
+    : 'Spielerprofil | Astro Fanblog'}
+  description={player
+    ? `Profil, Eckdaten und Leistungsübersichten zu ${player.name}.`
+    : 'Das Spielerprofil ist gerade nicht verfügbar.'}
+>
+  <main class="section shell player-profile-page">
+    <a class="player-profile-back" href={loan ? '/leihspieler' : '/kader'}
+      >{loan ? '← Zurück zu den Leihspielern' : '← Zurück zum Kader'}</a
+    >
+    {
+      player ? (
+        <>
+          <article class="player-profile-hero">
+            <div class="player-profile-intro">
+              <span class="overline">
+                {positionLabel(player.position)} · #{player.shirt_number ?? '–'}
+              </span>
+              <PageHeading>
+                {firstNames && <span>{firstNames}</span>}
+                <span>{lastName}</span>
+              </PageHeading>
+              <PlayerStatusBadges player={player} />
+              <p>
+                {player.bio ??
+                  'Die Redaktion ergänzt dieses Spielerprofil fortlaufend um aktuelle Informationen und Einordnungen.'}
+              </p>
+              <div class="player-profile-meta" aria-label="Spielerdaten">
+                {player.nationality && (
+                  <span>
+                    <i
+                      class={`fi fi-${countryFlagCode(player.nationality)}`}
+                      aria-hidden="true"
+                    />{' '}
+                    {player.nationality}
+                  </span>
+                )}
+                {age !== null && (
+                  <span>
+                    <Icon name="users" size={16} /> {age} Jahre
+                  </span>
+                )}
+                {player.joined_on && (
+                  <span>
+                    <Icon name="shirt" size={16} /> Seit{' '}
+                    {new Date(`${player.joined_on}T00:00:00Z`).getUTCFullYear()}{' '}
+                    beim FC
+                  </span>
+                )}
+                <span
+                  aria-label={`${player.total_goals} ${player.total_goals === 1 ? 'Tor' : 'Tore'} insgesamt`}
+                  title={`Tore gesamt: ${player.total_goals}`}
+                >
+                  <Icon name="ball" size={16} /> {player.total_goals}{' '}
+                  {player.total_goals === 1 ? 'Tor' : 'Tore'}
+                </span>
+                <span
+                  aria-label={`${player.total_assists} ${player.total_assists === 1 ? 'Vorlage' : 'Vorlagen'} insgesamt`}
+                  title={`Vorlagen gesamt: ${player.total_assists}`}
+                >
+                  <Icon name="assist" size={16} /> {player.total_assists}{' '}
+                  {player.total_assists === 1 ? 'Vorlage' : 'Vorlagen'}
+                </span>
+              </div>
+            </div>
+            <div class="player-profile-number" aria-hidden="true">
+              {player.shirt_number ?? '–'}
+            </div>
+            <div class="player-profile-motto" aria-hidden="true">
+              {player.profile_slogan}
+            </div>
+          </article>
+
+          <section
+            class="player-profile-section"
+            aria-labelledby="steckbrief-heading"
+          >
+            <header class="player-profile-heading">
+              <span>01</span>
+              <h2 id="steckbrief-heading">Profil</h2>
+            </header>
+            <div class="player-profile-grid">
+              <dl class="player-profile-facts">
+                {facts.map(({ label, value, icon }) => (
+                  <div>
+                    <Icon name={icon} size={22} />
+                    <span>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </span>
+                  </div>
+                ))}
+              </dl>
+              <aside class="player-market-value">
+                <Icon name="coins" size={24} />
+                <div>
+                  <span>Marktwert</span>
+                  <strong>{formatMarketValue(player.market_value_eur)}</strong>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          {loan && (
+            <section
+              class="player-profile-section"
+              aria-labelledby="leihdetails-heading"
+            >
+              <header class="player-profile-heading">
+                <span>02</span>
+                <h2 id="leihdetails-heading">Leihdetails</h2>
+              </header>
+              <dl class="player-profile-facts">
+                <div>
+                  <Icon name="transfer" size={22} />
+                  <span>
+                    <dt>Leihstatus</dt>
+                    <dd>
+                      {loan.direction === 'incoming' ? 'Geliehen' : 'Verliehen'}
+                    </dd>
+                  </span>
+                </div>
+                <div>
+                  <Icon name="shield" size={22} />
+                  <span>
+                    <dt>Partnerverein</dt>
+                    <dd>{loan.partner_club ?? 'Nicht hinterlegt'}</dd>
+                  </span>
+                </div>
+                <div>
+                  <Icon name="calendar" size={22} />
+                  <span>
+                    <dt>Leihbeginn</dt>
+                    <dd>{formatPlayerDate(loan.starts_on)}</dd>
+                  </span>
+                </div>
+                <div>
+                  <Icon name="calendar" size={22} />
+                  <span>
+                    <dt>Voraussichtliches Leihende</dt>
+                    <dd>
+                      {loan.ends_on ? formatPlayerDate(loan.ends_on) : 'Offen'}
+                    </dd>
+                  </span>
+                </div>
+              </dl>
+              {loan.note && <p>{loan.note}</p>}
+              {loan.source_url && (
+                <a href={loan.source_url} target="_blank" rel="noreferrer">
+                  Quelle zur Leihe <Icon name="external-link" size={15} />
+                </a>
+              )}
+            </section>
+          )}
+
+          {(charts.length > 0 || showMatchHistory) && (
+            <section
+              class="player-profile-section"
+              aria-labelledby="charts-heading"
+            >
+              <header class="player-profile-heading">
+                <span>{loan ? '03' : '02'}</span>
+                <h2 id="charts-heading">
+                  {charts.length > 0 ? 'Leistungsprofil' : 'Spielhistorie'}
+                </h2>
+              </header>
+              <div
+                class:list={[
+                  'player-profile-overview',
+                  charts.length > 0 && showMatchHistory
+                    ? 'player-profile-overview--split'
+                    : charts.length > 0
+                      ? 'player-profile-overview--charts-only'
+                      : 'player-profile-overview--history-only',
+                ]}
+              >
+                {charts.length > 0 && (
+                  <div class="player-profile-chart-list">
+                    {charts.map((chart) => {
+                      const metrics = isRadarMetrics(chart.metrics)
+                        ? chart.metrics
+                        : null;
+                      const sourceNote = chart.description?.startsWith(
+                        'Datenbasis:',
+                      )
+                        ? chart.description
+                        : null;
+                      const description = sourceNote ? null : chart.description;
+                      return metrics ? (
+                        <article class="player-chart-card">
+                          <header>
+                            <h3>{chart.title}</h3>
+                            {description && <p>{description}</p>}
+                            <PlayerChartHelp />
+                          </header>
+                          <PlayerPerformanceChart
+                            title={chart.title}
+                            metrics={metrics}
+                            chartType={chart.chart_type}
+                            unit={sourceNote ? '%' : ''}
+                          />
+                          {sourceNote && (
+                            <p class="player-chart-source">{sourceNote}</p>
+                          )}
+                        </article>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                {showMatchHistory && (
+                  <PlayerMatchHistory entries={matchHistory} />
+                )}
+              </div>
+            </section>
+          )}
+        </>
+      ) : (
+        <EmptyState
+          technical
+          title="Profil nicht erreichbar"
+          message="Bitte versuche es später erneut."
+        />
+      )
+    }
+  </main>
+</BaseLayout>

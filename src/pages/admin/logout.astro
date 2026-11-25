@@ -1,0 +1,25 @@
+---
+import { isSameOrigin } from '../../lib/admin';
+import { createRequestClient } from '../../lib/supabase';
+import { clearTrustedDeviceCookie, signOutSafely } from '../../lib/auth-security';
+
+if (Astro.request.method !== 'POST' || !isSameOrigin(Astro.request)) {
+  return new Response('Method Not Allowed', {
+    status: 405,
+    headers: { Allow: 'POST' },
+  });
+}
+
+const supabase = createRequestClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+Astro.session?.destroy();
+clearTrustedDeviceCookie(Astro.cookies);
+if (!(await signOutSafely(supabase)))
+  return new Response(
+    'Abmeldung nicht vollständig abgeschlossen. Bitte versuche es erneut.',
+    { status: 503 },
+  );
+return Astro.redirect('/admin/login', 303);
+---

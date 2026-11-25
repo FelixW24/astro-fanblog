@@ -1,0 +1,96 @@
+---
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import { searchArticles } from '../../lib/article-search';
+import { getArticles, type Article } from '../../lib/content';
+
+let articles: Article[] = [];
+let backendAvailable = true;
+let searchError: string | undefined;
+const searchQuery = Astro.url.searchParams.get('suche')?.trim() ?? '';
+try {
+  articles = await getArticles();
+  const result = await searchArticles(articles, searchQuery);
+  articles = result.articles;
+  searchError = result.error;
+} catch {
+  backendAvailable = false;
+}
+---
+
+<BaseLayout
+  title="Alle Beiträge | Astro Fanblog"
+  description="Alle Analysen, News, PK-Zusammenfassungen und Transfertexte von Astro Fanblog."
+>
+  <header class="page-hero shell">
+    {searchQuery && <span class="overline">Suchergebnisse</span>}
+    <PageHeading>
+      {
+        searchQuery ? (
+          <>
+            Suche nach <em>„{searchQuery}“</em>
+          </>
+        ) : (
+          <>
+            Beiträge
+          </>
+        )
+      }
+    </PageHeading>
+    {
+      searchQuery && (
+        <p>
+          {`${articles.length} ${articles.length === 1 ? 'Beitrag gefunden' : 'Beiträge gefunden'}.`}
+        </p>
+      )
+    }
+  </header>
+  <section class="section shell">
+    {
+      searchError && (
+        <p role="alert" class="search-error" data-notification>
+          {searchError}
+        </p>
+      )
+    }
+    {
+      backendAvailable && articles.length ? (
+        <div class="article-grid">
+          {articles.map((article) => (
+            <ArticleCard article={article} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          technical={!backendAvailable}
+          title={
+            !backendAvailable
+              ? 'Beiträge sind gerade nicht erreichbar'
+              : searchError
+                ? 'Bitte passe deine Suche an.'
+                : searchQuery
+                  ? 'Keine passenden Beiträge'
+                  : 'Noch keine Beiträge'
+          }
+          message={
+            !backendAvailable
+              ? 'Bitte versuche es in ein paar Minuten noch einmal.'
+              : (searchError ??
+                (searchQuery
+                  ? 'Versuche es mit einem anderen Suchbegriff.'
+                  : 'Sobald neue Beiträge veröffentlicht sind, findest du sie hier. Schau bald wieder vorbei.'))
+          }
+        />
+      )
+    }
+  </section>
+</BaseLayout>
+
+<style>
+  .search-error {
+    border-left: 2px solid var(--color-blueprint-blue);
+    padding: 12px 16px;
+  }
+</style>

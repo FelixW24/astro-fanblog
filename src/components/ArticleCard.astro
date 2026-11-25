@@ -1,0 +1,103 @@
+---
+import type { Article } from '../lib/content';
+import { categoryMeta, formatDate } from '../lib/content';
+import Icon from './Icon.astro';
+import { articleCover } from '../lib/article-cover';
+
+interface Props {
+  article: Article;
+  featured?: boolean;
+  priority?: boolean;
+}
+
+const { article, featured = false, priority = false } = Astro.props;
+// Serverseitig erkannter Datensparmodus (Cookie/Save-Data-Header) liefert
+// die Kompakt-Variante direkt als src aus; sonst rendern wir die volle
+// Variante. Die jeweils andere Variante (nur bei Preset-Covern ohne eigenes
+// Bild) liegt als data-Attribut vor und wird clientseitig getauscht
+// (scripts/data-saver-images.ts).
+const dataSaver = Astro.locals.dataSaver === true;
+const coverFull = articleCover(article, { compact: false });
+const coverCompact = articleCover(article, { compact: true });
+const cover = dataSaver ? coverCompact : coverFull;
+const coverCompactDiffers =
+  coverFull !== null && coverCompact !== null && coverCompact.src !== coverFull.src;
+const categoryLabel = categoryMeta(article.category).label;
+---
+
+<a
+  class="article-card-link"
+  href={`/beitraege/${article.slug}`}
+  aria-label={`Beitrag öffnen: ${article.title}`}
+>
+  <article
+    class:list={[
+      'article-card',
+      { 'article-card--featured': featured, 'article-card--no-cover': !cover },
+    ]}
+  >
+    <div class={`card-visual visual-${article.category}`} aria-hidden="true">
+      {
+        cover && (
+          <img
+            class="article-card-cover"
+            src={cover.src}
+            data-compact-src={
+              coverCompactDiffers && coverCompact ? coverCompact.src : undefined
+            }
+            data-compact-srcset={
+              coverCompactDiffers &&
+              coverCompact?.isDefault
+                ? coverCompact.srcset
+                : undefined
+            }
+            data-full-src={
+              coverCompactDiffers && dataSaver && coverFull
+                ? coverFull.src
+                : undefined
+            }
+            data-full-srcset={
+              coverCompactDiffers &&
+              dataSaver &&
+              coverFull?.isDefault
+                ? coverFull.srcset
+                : undefined
+            }
+            srcset={cover.isDefault ? cover.srcset : undefined}
+            sizes={cover.isDefault
+              ? featured
+                ? '(max-width: 620px) calc(100vw - 64px), 35vw'
+                : '(max-width: 620px) calc(100vw - 64px), 140px'
+              : undefined}
+            width={cover.isDefault ? cover.width : undefined}
+            height={cover.isDefault ? cover.height : undefined}
+            alt=""
+            loading={priority ? 'eager' : 'lazy'}
+            fetchpriority={priority ? 'high' : undefined}
+            decoding="async"
+          />
+        )
+      }
+    </div>
+    <div class="card-copy">
+      <div class="card-meta">
+        <time datetime={article.published_at ?? undefined}
+          >{formatDate(article.published_at)}</time
+        >
+      </div>
+      <h2>{article.title}</h2>
+      <p>{article.excerpt}</p>
+      <div class="card-footer">
+        <span>{article.author}</span>
+        <span class="card-category">{categoryLabel}</span>
+        <span
+          class="reading-time"
+          aria-label={`${article.read_minutes} Min. Lesezeit`}
+        >
+          <Icon name="hourglass" size={13} />
+          {article.read_minutes} Min.
+        </span>
+      </div>
+    </div>
+  </article>
+</a>

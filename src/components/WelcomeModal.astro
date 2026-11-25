@@ -1,0 +1,252 @@
+---
+import Icon from './Icon.astro';
+import { splitParagraphs, type NewsletterSettings } from '../lib/newsletter';
+import '../styles/public/welcome-modal.css';
+
+interface Props {
+  settings: NewsletterSettings;
+}
+
+// Willkommens-Modal auf den öffentlichen Seiten: stellt das Studentenprojekt
+// von Max Mustermann vor, weist auf den noch laufenden Aufbau hin und bietet
+// die Newsletter-Anmeldung (Double-Opt-in über POST /api/newsletter/anmelden).
+// Das Anmeldeformular ist eingeklappt: Unter dem Info-Text bietet eine
+// schlanke Karte mit Brief-Icon und Aufklapp-Chevron die Anmeldung an — wer
+// sie nicht antippt, sieht nur den Willkommenstext. Alle Formulartexte kommen aus
+// newsletter_settings und sind in der Redaktion unter /admin/newsletter
+// steuerbar. Das Modal öffnet sich nur beim frischen Einstieg in die Seite
+// (erstes Mal pro Sitzung, nicht beim Wechsel auf eine andere Seite) und
+// ist barrierefrei bedienbar (natives <dialog>).
+const { settings } = Astro.props;
+const paragraphs = splitParagraphs(settings.intro);
+---
+
+<dialog
+  class="welcome-modal"
+  data-welcome-modal
+  aria-labelledby="welcome-modal-title"
+>
+  <div class="welcome-modal__surface">
+    <header class="welcome-modal__header">
+      <h2 id="welcome-modal-title">{settings.heading}</h2>
+      <button
+        type="button"
+        class="welcome-modal__close"
+        data-welcome-close
+        aria-label="Willkommenshinweis schließen">×</button
+      >
+    </header>
+    <div class="welcome-modal__body">
+      {paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+      {
+        settings.newsletterEnabled && (
+          <div class="welcome-modal__signup">
+            <button
+              type="button"
+              class="welcome-modal__signup-toggle"
+              data-welcome-signup
+              aria-expanded="false"
+              aria-controls="welcome-newsletter-form"
+              aria-label="Newsletter-Anmeldung öffnen"
+            >
+              <span class="welcome-modal__signup-icon">
+                <Icon name="mail" size={17} />
+              </span>
+              <span class="welcome-modal__signup-label">Newsletter</span>
+              <span class="welcome-modal__signup-chevron" aria-hidden="true">
+                <Icon name="chevron-down" size={16} />
+              </span>
+            </button>
+            <form
+              class="reader-form welcome-modal__form"
+              id="welcome-newsletter-form"
+              data-welcome-newsletter-form
+              data-success-message={settings.successMessage}
+              hidden
+            >
+              <label>
+                <span>{settings.emailLabel}</span>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  maxlength="254"
+                  autocomplete="email"
+                  placeholder={settings.emailPlaceholder}
+                  data-welcome-email
+                />
+              </label>
+              <p
+                role="alert"
+                class="welcome-modal__error"
+                data-welcome-error
+                hidden
+              />
+              <p
+                role="status"
+                class="welcome-modal__status"
+                data-welcome-status
+                hidden
+              />
+              <button type="submit" data-welcome-submit>
+                {settings.submitLabel}
+              </button>
+              <p class="welcome-modal__privacy">
+                {settings.privacyNote}{' '}
+                <a href="/datenschutz">Datenschutzerklärung</a>
+              </p>
+            </form>
+          </div>
+        )
+      }
+      <button type="button" class="welcome-modal__continue" data-welcome-close>
+        Weiter zum Blog
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>(
+    '[data-welcome-modal]',
+  );
+
+  if (dialog) {
+    const form = dialog.querySelector<HTMLFormElement>(
+      '[data-welcome-newsletter-form]',
+    );
+    const signupButton = dialog.querySelector<HTMLButtonElement>(
+      '[data-welcome-signup]',
+    );
+    const signupCard = dialog.querySelector<HTMLElement>(
+      '.welcome-modal__signup',
+    );
+    const emailInput = form?.querySelector<HTMLInputElement>(
+      '[data-welcome-email]',
+    );
+    const submit = form?.querySelector<HTMLButtonElement>(
+      '[data-welcome-submit]',
+    );
+    const errorOutput = dialog.querySelector<HTMLElement>(
+      '[data-welcome-error]',
+    );
+    const statusOutput = dialog.querySelector<HTMLElement>(
+      '[data-welcome-status]',
+    );
+
+    // Standardmäßig ist das Anmeldeformular eingeklappt (hidden). Das
+    // Brief-Icon unter dem Info-Text klappt es auf und wieder zu; Besucher,
+    // die nicht klicken, sehen nur den Willkommenstext. Nach einer
+    // abgeschickten Anmeldung bleibt die Erfolgsmeldung sichtbar.
+    let submitted = false;
+    if (form && signupButton && signupCard) {
+      signupButton.addEventListener('click', () => {
+        if (submitted) return;
+        form.hidden = !form.hidden;
+        signupButton.setAttribute('aria-expanded', String(!form.hidden));
+        signupCard.classList.toggle('is-active', !form.hidden);
+        if (!form.hidden) emailInput?.focus();
+      });
+    }
+
+    // Modal nur beim frischen Einstieg in die Seite automatisch öffnen:
+    // weder wenn es in dieser Sitzung (Tab) schon einmal angezeigt wurde
+    // (sessionStorage) noch wenn der Aufruf von einer anderen Seite derselben
+    // Domain stammt (interner Seitenwechsel als voller Reload). Schließen
+    // über die Buttons, ESC oder den Backdrop gilt für den jeweiligen Aufruf.
+    const seenKey = 'astro-fanblog:welcome-modal:shown:v1';
+    const fromSameSite = (() => {
+      try {
+        return (
+          !!document.referrer &&
+          new URL(document.referrer).origin === window.location.origin
+        );
+      } catch {
+        return false;
+      }
+    })();
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem(seenKey) !== null;
+    } catch {
+      // Ohne sessionStorage entscheidet allein der Referrer.
+    }
+    if (!seen && !fromSameSite) {
+      try {
+        sessionStorage.setItem(seenKey, new Date().toISOString());
+      } catch {
+        // Ohne sessionStorage (z. B. privates Fenster) erscheint das Modal
+        // bei jedem frischen Einstieg erneut – akzeptabel.
+      }
+      window.setTimeout(() => {
+        if (!dialog.open) {
+          dialog.showModal();
+          (
+            signupButton ??
+            dialog.querySelector<HTMLElement>('[data-welcome-close]')
+          )?.focus();
+        }
+      }, 600);
+    }
+
+    // Klick auf die freie Dialogfläche (Backdrop) schließt das Modal.
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog
+      .querySelectorAll('[data-welcome-close]')
+      .forEach((button) =>
+        button.addEventListener('click', () => dialog.close()),
+      );
+
+    if (form && emailInput && submit && errorOutput && statusOutput) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        errorOutput.setAttribute('hidden', '');
+        statusOutput.setAttribute('hidden', '');
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        fetch('/api/newsletter/anmelden', {
+          method: 'POST',
+          body: new FormData(form),
+        })
+          .then(async (response) => {
+            const data = (await response.json().catch(() => null)) as {
+              ok?: boolean;
+              message?: string;
+              error?: string;
+            } | null;
+            if (!response.ok || !data || data.error) {
+              errorOutput.textContent =
+                data?.error ??
+                'Die Anmeldung konnte nicht verarbeitet werden. Bitte versuche es später erneut.';
+              errorOutput.removeAttribute('hidden');
+              return;
+            }
+            // Nach erfolgreicher Anmeldung: Formular sperren und die
+            // Erfolgsmeldung aus den redaktionell gepflegten Settings zeigen.
+            submitted = true;
+            emailInput.disabled = true;
+            statusOutput.textContent =
+              form.dataset.successMessage ||
+              data.message ||
+              'Danke! Bitte bestätige deine Anmeldung über den Link in der E-Mail.';
+            statusOutput.removeAttribute('hidden');
+          })
+          .catch(() => {
+            errorOutput.textContent =
+              'Die Anmeldung konnte nicht verarbeitet werden. Bitte versuche es später erneut.';
+            errorOutput.removeAttribute('hidden');
+          })
+          .finally(() => {
+            submit.disabled = false;
+            submit.removeAttribute('aria-busy');
+          });
+      });
+    }
+  }
+</script>

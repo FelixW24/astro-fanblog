@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title">
+  <title>Astro Fanblog</title>
+  <rect x="8" y="8" width="144" height="144" rx="32" fill="#2b2d42"/>
+  <circle cx="80" cy="80" r="46" fill="#ffffff"/>
+  <path d="M80 58 L101.8 73.8 L93.3 99.2 L66.7 99.2 L58.2 73.8 Z" fill="#2b2d42"/>
+  <path d="M80 34 v24 M101.8 73.8 l22 -8 M93.3 99.2 l14 20 M66.7 99.2 l-14 20 M58.2 73.8 l-22 -8" stroke="#2b2d42" stroke-width="5" stroke-linecap="round"/>
+</svg>

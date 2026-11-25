@@ -1,0 +1,59 @@
+---
+import type { ArticleFormValues } from '../../../lib/admin';
+
+interface Props {
+  values: ArticleFormValues;
+}
+
+const { values } = Astro.props;
+---
+
+<section class="editor-panel editor-panel--seo" data-wizard-step="3" hidden>
+  <div class="section-heading">
+    <div>
+      <span class="section-kicker">03 · Auffindbarkeit</span>
+      <h2>SEO & Suche</h2>
+    </div>
+    <span class="section-note">Optional – nutzt sonst Titel & Teaser</span>
+  </div>
+  <div class="editor-two-columns">
+    <div>
+      <label class="field">
+        <span
+          >SEO-Titel <small id="seo-title-count"
+            >{values.seo_title.length}/70</small
+          ></span
+        >
+        <input
+          id="seo-title"
+          name="seo_title"
+          value={values.seo_title}
+          minlength="5"
+          maxlength="70"
+          placeholder="Abweichender Titel für Suchmaschinen"
+        />
+      </label>
+      <label class="field">
+        <span
+          >SEO-Beschreibung <small id="seo-description-count"
+            >{values.seo_description.length}/180</small
+          ></span
+        >
+        <textarea
+          id="seo-description"
+          name="seo_description"
+          rows="4"
+          minlength="20"
+          maxlength="180"
+          placeholder="Prägnante Zusammenfassung mit Suchbegriff …"
+          >{values.seo_description}</textarea
+        >
+      </label>
+    </div>
+    <div class="search-preview" aria-label="Suchergebnis-Vorschau">
+      <span>{Astro.url.host} › beitraege › <b data-seo-slug>…</b></span>
+      <strong data-seo-title>Beitragstitel</strong>
+      <p data-seo-description>Die Beschreibung des Beitrags erscheint hier.</p>
+    </div>
+  </div>
+</section>

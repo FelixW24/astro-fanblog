@@ -1,0 +1,367 @@
+---
+import PlayerStatusBadges from './PlayerStatusBadges.astro';
+import PageHeading from './PageHeading.astro';
+import '../styles/public/section-timeline.css';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import EmptyState from './EmptyState.astro';
+import { formatDate, getLoans, type Loan } from '../lib/content';
+import { calculateAge, positionLabel } from '../lib/player';
+import Icon from './Icon.astro';
+
+interface Props {
+  direction: 'outgoing' | 'incoming';
+}
+const { direction } = Astro.props;
+
+let loans: Loan[] = [];
+let backendAvailable = true;
+try {
+  loans = await getLoans();
+} catch {
+  backendAvailable = false;
+}
+const outgoing = loans.filter((loan) => loan.direction === 'outgoing');
+const incoming = loans.filter((loan) => loan.direction === 'incoming');
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .slice(-2)
+    .join('');
+const groups: {
+  id: 'outgoing' | 'incoming';
+  label: string;
+  href: string;
+  title: string;
+  description?: string;
+  icon: 'external-link' | 'arrow-left';
+  entries: typeof outgoing;
+}[] = [
+  {
+    id: 'outgoing',
+    label: 'Verliehen',
+    href: '/leihspieler/verliehen',
+    title: 'Vom FC verliehen',
+    icon: 'external-link' as const,
+    entries: outgoing,
+  },
+  {
+    id: 'incoming',
+    label: 'Geliehen',
+    href: '/leihspieler/geliehen',
+    title: 'Beim FC auf Leihbasis',
+    icon: 'arrow-left' as const,
+    entries: incoming,
+  },
+];
+const selectedGroup = groups.find((group) => group.id === direction)!;
+---
+
+<BaseLayout
+  title={`${selectedGroup.label} – Leihspieler 2026/27 | Astro Fanblog`}
+  description={selectedGroup.description}
+>
+  <header class="page-hero page-hero--squad">
+    <div class="shell">
+      <PageHeading>{selectedGroup.label}</PageHeading>
+      {selectedGroup.description && <p>{selectedGroup.description}</p>}
+      <div class="squad-navigation squad-navigation--embedded loans-navigation">
+        <nav aria-label="Leiharten">
+          {
+            groups.map((group) => (
+              <a
+                href={group.href}
+                aria-current={group.id === direction ? 'page' : undefined}
+              >
+                <Icon name={group.icon} size={18} />
+                {group.label} <span>({group.entries.length})</span>
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+    </div>
+  </header>
+  <div class="section shell squad-list loans-page">
+    {
+      !backendAvailable ? (
+        <EmptyState
+          technical
+          title="Leihspieler sind gerade nicht erreichbar"
+          message="Bitte versuche es in ein paar Minuten noch einmal."
+        />
+      ) : !selectedGroup.entries.length ? (
+        <EmptyState
+          title={`Aktuell keine ${direction === 'outgoing' ? 'verliehenen' : 'geliehenen'} Spieler`}
+          message="Sobald eine aktive Leihe hinterlegt ist, findest du den Spieler hier."
+        />
+      ) : (
+        <section
+          class="loans-group"
+          id={selectedGroup.id}
+          aria-labelledby={selectedGroup.id + '-heading'}
+        >
+          <header class="loans-group__heading">
+            <Icon name={selectedGroup.icon} size={28} />
+            <div>
+              <h2 id={selectedGroup.id + '-heading'}>
+                {selectedGroup.title}{' '}
+                <span>{selectedGroup.entries.length}</span>
+              </h2>
+              <p>{selectedGroup.description}</p>
+            </div>
+          </header>
+          <div class="loans-group__list">
+            {selectedGroup.entries.map((loan) => (
+              <a
+                class="loan-player-card"
+                data-player-card
+                href={'/kader/' + loan.players.slug}
+                aria-label={loan.players?.name ?? 'Spieler'}
+              >
+                <div class="loan-player-card__top">
+                  <span class="loan-player-card__initials" aria-hidden="true">
+                    {initials(loan.players?.name ?? 'Spieler')}
+                  </span>
+                  <div class="loan-player-card__identity">
+                    <span>{positionLabel(loan.players?.position ?? '')}</span>
+                    <h3>{loan.players.name}</h3>
+                    <PlayerStatusBadges player={loan.players} />
+                    <p>
+                      {loan.partner_club ??
+                        'Partnerverein noch nicht hinterlegt'}
+                    </p>
+                  </div>
+                  <div class="loan-player-card__end">
+                    <span>Leihende</span>
+                    <strong>
+                      {loan.ends_on ? formatDate(loan.ends_on) : 'Offen'}
+                    </strong>
+                  </div>
+                </div>
+                <dl class="loan-player-card__facts">
+                  <div>
+                    <dt>Alter</dt>
+                    <dd>
+                      {calculateAge(loan.players?.date_of_birth ?? null) ?? '–'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Einsätze</dt>
+                    <dd>–</dd>
+                  </div>
+                  <div>
+                    <dt>Leih seit</dt>
+                    <dd>
+                      {loan.starts_on
+                        ? 'Sommer ' + new Date(loan.starts_on).getUTCFullYear()
+                        : '–'}
+                    </dd>
+                  </div>
+                </dl>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+    <p class="data-note">
+      Leihdaten werden redaktionell gepflegt. Vertragsdetails können sich
+      ändern.
+    </p>
+  </div>
+</BaseLayout>
+
+<script>
+  import { wireLoansSwitch } from '../scripts/loans-switch';
+  wireLoansSwitch();
+</script>
+
+<style>
+  .loans-navigation,
+  .loans-page {
+    --squad-rail-space: 0px;
+  }
+  .loans-navigation nav {
+    background: transparent;
+    border: 0;
+    padding-inline: 0;
+  }
+  .loans-navigation nav a[aria-current='page'] {
+    color: var(--color-ink-black);
+    border-bottom-color: var(--color-blueprint-blue);
+    font-weight: 600;
+  }
+  .loans-page {
+    padding-bottom: 48px;
+  }
+  .loans-group {
+    min-width: 0;
+    scroll-margin-top: var(--squad-scroll-offset, 124px);
+  }
+  .loans-group__heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    margin: 0 8px 14px;
+  }
+  .loans-group__heading > :global(svg) {
+    flex: 0 0 auto;
+    margin-top: 4px;
+    color: var(--color-blueprint-blue);
+  }
+  .loans-group__heading h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.04em;
+  }
+  .loans-group__heading h2 span {
+    display: inline-grid;
+    min-width: 30px;
+    height: 26px;
+    place-items: center;
+    margin-left: 4px;
+    padding: 0 7px;
+    background: var(--color-stone);
+    border-radius: 50px;
+    font-size: 14px;
+    letter-spacing: 0;
+    vertical-align: 3px;
+  }
+  .loans-group__heading p {
+    margin: 4px 0 0;
+    color: var(--color-slate);
+    font-size: 14px;
+  }
+  .loans-group__list {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+  }
+  .loan-player-card {
+    display: block;
+    min-width: 0;
+    padding: 20px;
+    background: var(--color-canvas);
+    border: 1px solid var(--color-fog);
+    border-radius: var(--radius-cards);
+    transition:
+      background 160ms ease,
+      border-color 160ms ease;
+  }
+  .loan-player-card:hover {
+    background: var(--surface-interactive-hover);
+    border-color: var(--color-blueprint-blue);
+  }
+  .loan-player-card:focus-visible {
+    outline: 3px solid var(--color-blueprint-blue);
+    outline-offset: 2px;
+  }
+  .loan-player-card__top {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 56px;
+    gap: 24px;
+  }
+  .loan-player-card__initials {
+    display: grid;
+    align-items: center;
+    height: 56px;
+    padding-left: 10px;
+    border-right: 1px solid var(--color-fog);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+  }
+  .loan-player-card__identity {
+    min-width: 0;
+  }
+  .loan-player-card__identity > span,
+  .loan-player-card__end > span,
+  .loan-player-card__facts dt {
+    color: var(--color-slate);
+    font-size: 12px;
+  }
+  .loan-player-card__identity h3 {
+    margin: 1px 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    overflow-wrap: anywhere;
+  }
+  .loan-player-card__identity p {
+    margin: 0;
+    color: var(--color-slate);
+    font-size: 14px;
+  }
+  .loan-player-card__end {
+    min-width: 140px;
+    padding-left: 18px;
+    border-left: 1px solid var(--color-fog);
+  }
+  .loan-player-card__end span,
+  .loan-player-card__end strong {
+    display: block;
+  }
+  .loan-player-card__end strong {
+    white-space: nowrap;
+    font-size: 16px;
+  }
+  .loan-player-card__facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 10px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-fog);
+  }
+  .loan-player-card__facts > div {
+    min-width: 0;
+    padding-left: 10px;
+  }
+  .loan-player-card__facts > div + div {
+    border-left: 1px solid var(--color-fog);
+    padding-left: 38px;
+  }
+  .loan-player-card__facts dd {
+    margin: 2px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  @media (max-width: 700px) {
+    .loans-group__heading {
+      margin: 0 0 14px;
+      gap: 10px;
+    }
+    .loans-group__heading h2 {
+      font-size: 21px;
+    }
+    .loan-player-card {
+      padding: 12px;
+    }
+    .loan-player-card__top {
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 12px;
+    }
+    .loan-player-card__initials {
+      width: 48px;
+      font-size: 22px;
+    }
+    .loan-player-card__end {
+      grid-column: 2;
+      min-width: 0;
+      padding-left: 0;
+      border-left: 0;
+    }
+    .loan-player-card__end strong {
+      white-space: normal;
+    }
+    .loan-player-card__facts > div + div {
+      padding-left: 12px;
+    }
+  }
+</style>

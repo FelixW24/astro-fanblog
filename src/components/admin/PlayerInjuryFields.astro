@@ -1,0 +1,93 @@
+---
+import type { PlayerFormValues } from '../../lib/admin-player';
+interface Props {
+  values: PlayerFormValues;
+}
+const { values } = Astro.props;
+---
+
+<section class="editor-panel" data-player-injury-fields>
+  <div class="section-heading">
+    <div>
+      <span class="section-kicker">Verfügbarkeit</span><h2>Verletzung</h2>
+    </div>
+  </div>
+  <label class="check-field">
+    <input type="checkbox" name="is_injured" checked={values.is_injured} />
+    <span>Spieler ist verletzt</span>
+  </label>
+  <div class="player-editor-grid">
+    <label class="field">
+      <span
+        >Verletzt seit<span
+          class="required-marker"
+          aria-hidden="true"
+          hidden={!values.is_injured}></span></span
+      >
+      <input
+        type="date"
+        name="injury_since"
+        value={values.injury_since}
+        required={values.is_injured}
+      />
+    </label>
+    <label class="field">
+      <span>Voraussichtlich bis</span>
+      <input type="date" name="injury_until" value={values.injury_until} />
+      <small
+        >Leer lassen, wenn die Rückkehr noch offen ist. Die Dauer wird aus
+        beiden Daten berechnet.</small
+      >
+    </label>
+  </div>
+  <output data-injury-duration aria-live="polite"></output>
+  <p>
+    Das Enddatum ist eine Prognose. Entferne den Haken, sobald der Spieler
+    wieder fit ist.
+  </p>
+</section>
+
+<script>
+  function setupInjuryFields() {
+    document
+      .querySelectorAll<HTMLElement>('[data-player-injury-fields]')
+      .forEach((section) => {
+        const checkbox = section.querySelector<HTMLInputElement>(
+          '[name="is_injured"]',
+        );
+        const since = section.querySelector<HTMLInputElement>(
+          '[name="injury_since"]',
+        );
+        const until = section.querySelector<HTMLInputElement>(
+          '[name="injury_until"]',
+        );
+        const marker = section.querySelector<HTMLElement>('.required-marker');
+        const duration = section.querySelector<HTMLOutputElement>(
+          '[data-injury-duration]',
+        );
+        if (!checkbox || !since || !until || !marker || !duration) return;
+        const update = () => {
+          since.required = checkbox.checked;
+          since.disabled = until.disabled = !checkbox.checked;
+          marker.hidden = !checkbox.checked;
+          until.min = since.value;
+          const days =
+            Math.round(
+              (Date.parse(until.value) - Date.parse(since.value)) / 86400000,
+            ) + 1;
+          duration.textContent = !checkbox.checked
+            ? ''
+            : !until.value
+              ? 'Rückkehr offen'
+              : Number.isFinite(days) && days > 0
+                ? `Voraussichtliche Dauer: ${days} ${days === 1 ? 'Tag' : 'Tage'} (einschließlich Anfangs- und Enddatum)`
+                : '';
+        };
+        checkbox.onchange = update;
+        since.oninput = until.oninput = update;
+        update();
+      });
+  }
+  setupInjuryFields();
+  document.addEventListener('astro:page-load', setupInjuryFields);
+</script>

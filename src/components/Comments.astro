@@ -1,0 +1,431 @@
+---
+import ReaderAvatar from './ReaderAvatar.astro';
+import Icon from './Icon.astro';
+import { readerAvatarPublicUrl } from '../lib/avatar-upload';
+import { createRequestClient } from '../lib/supabase';
+import '../styles/public/readers.css';
+interface Props {
+  articleId: number;
+  slug: string;
+}
+const { articleId, slug } = Astro.props;
+const client = Astro.locals.supabase ?? createRequestClient(Astro);
+const user = Astro.locals.readerUser;
+const returnPath = `/beitraege/${slug}#kommentare`;
+let page = Math.max(
+  1,
+  Math.min(10000, Number(Astro.url.searchParams.get('kommentarseite')) || 1),
+);
+const targetComment = Number(Astro.url.searchParams.get('kommentar'));
+if (Number.isSafeInteger(targetComment) && targetComment > 0) {
+  const { count } = await client
+    .from('comments')
+    .select('id', { count: 'exact', head: true })
+    .eq('article_id', articleId)
+    .eq('status', 'published')
+    .lt('id', targetComment);
+  page = Math.floor((count ?? 0) / 50) + 1;
+}
+const offset = (Math.floor(page) - 1) * 50;
+const [commentsResult, scoresResult, profileResult, banResult] =
+  await Promise.all([
+    client
+      .from('comments')
+      .select(
+        '*, reader_profiles!comments_user_id_fkey(username, avatar, avatar_url, is_ghost)',
+        {
+          count: 'exact',
+        },
+      )
+      .eq('article_id', articleId)
+      .eq('status', 'published')
+      .order('id')
+      .range(offset, offset + 49),
+    client
+      .rpc('comment_scores', { target_article: articleId })
+      .order('comment_id')
+      .range(offset, offset + 49),
+    user
+      ? client
+          .from('reader_profiles')
+          .select('id, is_ghost')
+          .eq('id', user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    user
+      ? client
+          .from('comment_bans')
+          .select('blocked_until')
+          .eq('user_id', user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+const comments = commentsResult.data ?? [];
+const canParticipate = Boolean(user?.email_confirmed_at && profileResult.data);
+// Geistermodus: Lesen bleibt möglich, Schreiben und Bewerten ist gesperrt.
+const isGhost = Boolean(profileResult.data?.is_ghost);
+const blockedUntil = banResult.data?.blocked_until;
+const blocked = Boolean(
+  blockedUntil && new Date(blockedUntil).getTime() > Date.now(),
+);
+const canComment =
+  canParticipate && !blocked && !isGhost && !banResult.error;
+const participationPath = user
+  ? `/profil/einrichten?weiter=${encodeURIComponent(returnPath)}`
+  : `/anmelden?weiter=${encodeURIComponent(returnPath)}`;
+const votesResult =
+  user && comments.length
+    ? await client
+        .from('comment_votes')
+        .select('*')
+        .eq('user_id', user.id)
+        .in(
+          'comment_id',
+          comments.map((c) => c.id),
+        )
+    : { data: [] };
+const votes = new Map(
+  (votesResult.data ?? []).map((v) => [v.comment_id, v.value]),
+);
+const scores = new Map((scoresResult.data ?? []).map((s) => [s.comment_id, s]));
+const errorMessages: Record<string, string> = {
+  text: 'Bitte schreibe einen Kommentar mit 1 bis 2000 Zeichen.',
+  save: 'Deine Aktion konnte nicht gespeichert werden. Bitte versuche es erneut.',
+  account: 'Für Kommentare benötigst du ein registriertes Leserkonto.',
+  email: 'Bitte bestätige zuerst deine E-Mail-Adresse.',
+  banned:
+    'Du kannst während deiner Kommentarsperre keine Kommentare schreiben.',
+  rate: 'Du hast gerade viele Kommentare geschrieben. Bitte warte etwas und versuche es später erneut. Pro Konto sind 10 Kommentare pro Minute und 60 pro Stunde möglich.',
+  ghost:
+    'Dein Konto ist im Geistermodus aktiv. Du kannst Kommentare lesen, aber keine schreiben oder bewerten.',
+  invalid: 'Die Anfrage ist ungültig. Bitte lade die Seite neu.',
+};
+const error =
+  errorMessages[Astro.url.searchParams.get('kommentarfehler') ?? ''];
+const authorName = (comment: (typeof comments)[number]) =>
+  comment.reader_profiles?.username ?? 'Gelöschter Nutzer';
+const commentCount = commentsResult.count ?? 0;
+const commentById = new Map(comments.map((comment) => [comment.id, comment]));
+const rootIdOf = (comment: (typeof comments)[number]): number => {
+  let current = comment;
+  while (current.parent_id) {
+    const parent = commentById.get(current.parent_id);
+    if (!parent) break;
+    current = parent;
+  }
+  return current.id;
+};
+const replyCountOf = (rootId: number): number =>
+  comments.filter((c) => c.parent_id && rootIdOf(c) === rootId).length;
+---
+
+<section
+  id="kommentare"
+  class="reader-comments shell"
+  aria-labelledby="comments-title"
+>
+  <div class="reader-comments__heading">
+    <h2 id="comments-title">
+      Kommentare <span aria-label={`${commentCount} Kommentare`}
+        >{commentCount}</span
+      >
+    </h2>
+    <a
+      class="article-jump-up"
+      href="#seitenanfang"
+      aria-label="Zum Seitenanfang"
+    >
+      <Icon name="arrow-up" />
+    </a>
+  </div>
+  {
+    error && (
+      <p role="alert" data-notification>
+        {error}
+      </p>
+    )
+  }
+  {
+    Astro.url.searchParams.get('pruefung') === 'ausstehend' && (
+      <p role="status" data-notification>
+        Dein Kommentar wurde zur Prüfung an die Redaktion gesendet. Er erscheint
+        nach der Freigabe.
+      </p>
+    )
+  }
+  {
+    blocked && blockedUntil && (
+      <p role="status">
+        Deine Kommentarfunktion ist bis{' '}
+        {new Date(blockedUntil).toLocaleString('de-DE', {
+          timeZone: 'Europe/Berlin',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })}{' '}
+        Uhr (Berliner Zeit) gesperrt.
+      </p>
+    )
+  }
+  {
+    isGhost && (
+      <p role="status">
+        Dein Konto ist im Geistermodus aktiv. Du kannst Kommentare lesen, aber
+        keine Kommentare oder Antworten schreiben und keine Bewertungen
+        abgeben.
+      </p>
+    )
+  }
+  {
+    commentsResult.error || scoresResult.error ? (
+      <p role="alert" data-notification>
+        Kommentare sind gerade nicht verfügbar. Bitte versuche es später erneut.
+      </p>
+    ) : (
+      <>
+        {canComment ? (
+          <form method="post" action="/kommentare" class="reader-form">
+            <p class="required-fields-note">
+              Mit * gekennzeichnete Felder sind Pflichtfelder.
+            </p>
+            <input type="hidden" name="article_slug" value={slug} />
+            <input type="hidden" name="action" value="comment" />
+            <label>
+              <span>
+                Kommentar schreiben
+                <span class="required-marker" aria-hidden="true" />
+              </span>
+              <textarea name="body" required maxlength="2000" />
+            </label>
+            <button type="submit">Kommentar veröffentlichen</button>
+          </form>
+        ) : user && !profileResult.data ? (
+          <p class="reader-comments__profile-notice">
+            {<a href={participationPath}>Richte dein Profil ein</a>} um
+            Kommentare zu schreiben, zu bewerten und zu beantworten.
+          </p>
+        ) : null}
+        {user && !user.email_confirmed_at && (
+          <p>Bitte bestätige zuerst deine E-Mail-Adresse.</p>
+        )}
+        {banResult.error && (
+          <p role="alert">
+            Die Kommentarfunktion ist gerade nicht verfügbar. Bitte versuche es
+            später erneut.
+          </p>
+        )}
+        {!user && (
+          <p class="reader-comments__write">
+            <a
+              class="comment-guest-action"
+              data-auth-required
+              href={`/anmelden?weiter=${encodeURIComponent(returnPath)}`}
+            >
+              <Icon name="edit" size={16} /> Kommentar schreiben
+            </a>
+          </p>
+        )}
+        {comments.length === 0 && (
+          <p>Noch keine Kommentare. Eröffne die Diskussion!</p>
+        )}
+        <div class="reader-comments__list" data-comment-list>
+          {comments.map((comment) => (
+            <article
+              id={`kommentar-${comment.id}`}
+              class:list={[
+                'reader-comment',
+                { 'reader-comment--reply': Boolean(comment.parent_id) },
+              ]}
+              hidden={Boolean(comment.parent_id)}
+              data-comment-item
+              data-reply-root={comment.parent_id ? rootIdOf(comment) : undefined}
+              tabindex="-1"
+            >
+              <header>
+                {
+                  comment.reader_profiles?.is_ghost ? (
+                    <ReaderAvatar variant="male" ghost />
+                  ) : comment.reader_profiles ? (
+                    <button
+                      type="button"
+                      class="reader-comment__avatar"
+                      data-comment-avatar
+                      data-comment-user-id={comment.user_id}
+                      aria-expanded="false"
+                      aria-controls="reader-card"
+                      aria-label={`Profilkarte von ${authorName(comment)} öffnen`}
+                    >
+                      <ReaderAvatar
+                        variant={comment.reader_profiles.avatar}
+                        imageUrl={
+                          comment.reader_profiles.avatar_url
+                            ? readerAvatarPublicUrl(
+                                comment.reader_profiles.avatar_url,
+                              )
+                            : null
+                        }
+                      />
+                    </button>
+                  ) : (
+                    <ReaderAvatar variant="male" imageUrl={null} />
+                  )
+                }
+                <div>
+                  <strong>{authorName(comment)}</strong>
+                </div>
+              </header>
+              <div class="reader-comment__content">
+                <div class="reader-comment__bubble">
+                  <p class="reader-comment-body">{comment.body}</p>
+                </div>
+                {!comment.parent_id && replyCountOf(comment.id) > 0 && (
+                  <button
+                    type="button"
+                    class="reader-comments__replies-toggle"
+                    data-replies-toggle
+                    data-for={comment.id}
+                    aria-expanded="false"
+                  >
+                    Antworten ({replyCountOf(comment.id)})
+                    <Icon
+                      name="chevron-down"
+                      size={12}
+                      class="reader-comments__replies-toggle-icon"
+                    />
+                  </button>
+                )}
+                <div class="reader-comment__actions">
+                  <form method="post" action="/kommentare" class="reader-votes">
+                    <p class="required-fields-note">
+                      Mit * gekennzeichnete Felder sind Pflichtfelder.
+                    </p>
+                    <input type="hidden" name="article_slug" value={slug} />
+                    <input type="hidden" name="action" value="vote" />
+                    <input type="hidden" name="comment_id" value={comment.id} />
+                    <button
+                      type="submit"
+                      name="value"
+                      class="reader-vote-button"
+                      value={votes.get(comment.id) === 1 ? '0' : '1'}
+                      aria-pressed={votes.get(comment.id) === 1}
+                      disabled={Boolean(user && (!canParticipate || isGhost))}
+                      data-auth-required={!user || undefined}
+                      aria-label={`Kommentar von ${authorName(comment)} liken`}
+                    >
+                      <Icon name="heart" size={12} />
+                      <span>
+                        Gefällt mir · {scores.get(comment.id)?.likes ?? 0}
+                      </span>
+                    </button>
+                  </form>
+                  {canComment && (
+                    <details>
+                      <summary
+                        aria-label={`Auf Kommentar von ${authorName(comment)} antworten`}
+                      >
+                        <Icon name="reply" size={14} />
+                      </summary>
+                      <form
+                        method="post"
+                        action="/kommentare"
+                        class="reader-form"
+                      >
+                        <p class="required-fields-note">
+                          Mit * gekennzeichnete Felder sind Pflichtfelder.
+                        </p>
+                        <input type="hidden" name="article_slug" value={slug} />
+                        <input type="hidden" name="action" value="comment" />
+                        <input
+                          type="hidden"
+                          name="parent_id"
+                          value={comment.id}
+                        />
+                        <label>
+                          <span>
+                            Antwort schreiben
+                            <span class="required-marker" aria-hidden="true" />
+                          </span>
+                          <textarea name="body" required maxlength="2000" />
+                        </label>
+                        <button type="submit">Antwort veröffentlichen</button>
+                      </form>
+                    </details>
+                  )}
+                  {!user && (
+                    <a
+                      class="comment-guest-action"
+                      data-auth-required
+                      href={`/anmelden?weiter=${encodeURIComponent(returnPath)}`}
+                    >
+                      Auf Kommentar antworten
+                    </a>
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+        <!-- Profilkarte (Hover/Klick auf ein Kommentar-Profilbild): Der Inhalt
+             wird pro Leser von /api/leser/profilkarte geladen; das Avatar
+             übernimmt die Karte aus dem jeweiligen Kommentar. -->
+        <template data-reader-card-template>
+          <div class="reader-card" id="reader-card" hidden>
+            <span class="reader-card__figure" data-reader-card-figure aria-hidden="true" />
+            <div class="reader-card__body">
+              <p class="reader-card__name" data-reader-card-name />
+              <p class="reader-card__meta">
+                <span class="reader-card__meta-item" data-reader-card-member hidden>
+                  <Icon name="calendar" size={12} />
+                  <span data-reader-card-member-label />
+                </span>
+                <span class="reader-card__meta-item" data-reader-card-count hidden>
+                  <Icon name="message-square" size={12} />
+                  <span data-reader-card-count-label />
+                </span>
+              </p>
+            </div>
+          </div>
+        </template>
+        <nav aria-label="Kommentarseiten">
+          {offset > 0 && (
+            <a href={`?kommentarseite=${Math.floor(page) - 1}#kommentare`}>
+              Vorherige Kommentare
+            </a>
+          )}
+          {(commentsResult.count ?? 0) > offset + 50 && (
+            <a href={`?kommentarseite=${Math.floor(page) + 1}#kommentare`}>
+              Weitere Kommentare
+            </a>
+          )}
+        </nav>
+      </>
+    )
+  }
+</section>
+
+<script>
+  import { wireReaderComments } from '../scripts/reader-comments';
+  function focusLinkedComment() {
+    if (!/^#kommentar-\d+$/.test(window.location.hash)) return;
+    const target = document.getElementById(window.location.hash.slice(1));
+    if (!target) return;
+    // Antworten sind eingeklappt: Thread zuerst aufklappen, dann fokussieren.
+    const rootId = target.getAttribute('data-reply-root');
+    if (rootId) {
+      const repliesToggle = document.querySelector<HTMLButtonElement>(
+        `[data-replies-toggle][data-for="${rootId}"]`,
+      );
+      if (repliesToggle?.getAttribute('aria-expanded') !== 'true')
+        repliesToggle?.click();
+    }
+    if (target.hidden) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
+  // Wait for images above the comments so their layout cannot shift the target.
+  if (document.readyState === 'complete') focusLinkedComment();
+  else window.addEventListener('load', focusLinkedComment, { once: true });
+  window.addEventListener('hashchange', focusLinkedComment);
+  document.querySelectorAll<HTMLElement>('.reader-comments').forEach((root) => {
+    wireReaderComments(root);
+  });
+</script>

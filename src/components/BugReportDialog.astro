@@ -1,0 +1,182 @@
+---
+import { BUG_REPORT_CATEGORIES } from '../lib/bug-report';
+import '../styles/public/bug-report.css';
+
+// Fehlermelde-Modal im Footer: natives dialog-Element, gleiche Optik wie das
+// Profil-Modal. Der Footer rendert das Modal nur für angemeldete Leser; das
+// Formular sendet über POST /api/bug-report, der Server versendet die Mail an
+// bug-report@example.com und erzwingt den 5-Minuten-Cooldown.
+---
+
+<dialog
+  class="bug-report-dialog"
+  data-bug-report-dialog
+  aria-labelledby="bug-report-title"
+>
+  <div class="bug-report-dialog__surface">
+    <header class="bug-report-dialog__header">
+      <h2 id="bug-report-title">Fehler melden</h2>
+      <button
+        type="button"
+        class="bug-report-dialog__close"
+        data-bug-report-close
+        aria-label="Fehlermeldung schließen">×</button
+      >
+    </header>
+    <form class="reader-form bug-report-dialog__form" data-bug-report-form>
+      <p class="required-fields-note">
+        Mit * gekennzeichnete Felder sind Pflichtfelder.
+      </p>
+      <label>
+        <span>Kategorie<span class="required-marker" aria-hidden="true"></span></span>
+        <select name="category" data-bug-report-category required>
+          {
+            BUG_REPORT_CATEGORIES.map((category) => (
+              <option value={category}>{category}</option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        <span>Seite<span class="required-marker" aria-hidden="true"></span></span>
+        <input
+          type="url"
+          name="page"
+          data-bug-report-page
+          inputmode="url"
+          required
+          maxlength="2048"
+        />
+      </label>
+      <label>
+        <span>
+          Was ist passiert?
+          <span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <textarea
+          name="description"
+          data-bug-report-description
+          required
+          minlength="10"
+          maxlength="2000"
+          placeholder="Kurz beschreiben, was nicht funktioniert hat – und was du erwartet hast."></textarea>
+      </label>
+      <p
+        role="alert"
+        data-bug-report-error
+        class="bug-report-dialog__error"
+        hidden></p>
+      <p
+        role="status"
+        data-bug-report-status
+        class="bug-report-dialog__status"
+        hidden></p>
+      <button type="submit" data-bug-report-submit>Fehlerbericht senden</button>
+    </form>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>(
+    '[data-bug-report-dialog]',
+  );
+
+  if (dialog) {
+    const form = dialog.querySelector<HTMLFormElement>(
+      '[data-bug-report-form]',
+    );
+    const pageInput = form?.querySelector<HTMLInputElement>(
+      '[data-bug-report-page]',
+    );
+    const submit = form?.querySelector<HTMLButtonElement>(
+      '[data-bug-report-submit]',
+    );
+    const errorOutput = form?.querySelector<HTMLElement>(
+      '[data-bug-report-error]',
+    );
+    const statusOutput = form?.querySelector<HTMLElement>(
+      '[data-bug-report-status]',
+    );
+    if (form && pageInput && submit && errorOutput && statusOutput) {
+      let lastTrigger: HTMLElement | null = null;
+
+      const close = () => dialog.close();
+      const showError = (message: string) => {
+        statusOutput.setAttribute('hidden', '');
+        errorOutput.textContent = message;
+        errorOutput.removeAttribute('hidden');
+      };
+      const showStatus = (message: string) => {
+        errorOutput.setAttribute('hidden', '');
+        statusOutput.textContent = message;
+        statusOutput.removeAttribute('hidden');
+      };
+
+      // Der Auslöser liegt in der Copyright-Zeile des Footers; Klicks per
+      // Delegation fangen.
+      document.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const trigger = target?.closest<HTMLElement>('[data-bug-report-open]');
+        if (!trigger || dialog.open) return;
+        event.preventDefault();
+        lastTrigger = trigger;
+        // Die aktuelle Seite vorbelegen, falls der Leser dort noch nichts
+        // eingetragen hat.
+        if (!pageInput.value.trim()) pageInput.value = window.location.href;
+        dialog.showModal();
+        form.querySelector<HTMLElement>('select, input, textarea')?.focus();
+      });
+
+      dialog
+        .querySelector('[data-bug-report-close]')
+        ?.addEventListener('click', close);
+      dialog.addEventListener('click', (event) => {
+        // Klick auf die freie Dialogfläche schließt das Modal.
+        if (event.target === dialog) close();
+      });
+      dialog.addEventListener('close', () => {
+        lastTrigger?.focus();
+        lastTrigger = null;
+      });
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        errorOutput.setAttribute('hidden', '');
+        statusOutput.setAttribute('hidden', '');
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        fetch('/api/bug-report', { method: 'POST', body: new FormData(form) })
+          .then(async (response) => {
+            const data = (await response
+              .json()
+              .catch(() => null)) as { error?: string; sent?: boolean } | null;
+            if (!response.ok || !data || data.error) {
+              showError(
+                data?.error ??
+                  'Der Fehlerbericht konnte nicht gesendet werden. Bitte versuche es später erneut.',
+              );
+              return;
+            }
+            form.reset();
+            pageInput.value = window.location.href;
+            showStatus(
+              'Danke! Dein Fehlerbericht wurde an die Redaktion gesendet.',
+            );
+          })
+          .catch(() => {
+            showError(
+              'Der Fehlerbericht konnte nicht gesendet werden. Bitte versuche es später erneut.',
+            );
+          })
+          .finally(() => {
+            submit.disabled = false;
+            submit.removeAttribute('aria-busy');
+          });
+      });
+    }
+  }
+</script>

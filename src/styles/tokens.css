@@ -1,0 +1,157 @@
+@import url('https://api.fontshare.com/v2/css?f[]=ranade@1,2&display=swap');
+
+:root {
+  color-scheme: light;
+  --color-blueprint-blue: #d20a0a;
+  --color-blueprint-blue-dark: #a80707;
+  --color-ink-black: #151719;
+  --color-carbon: #151719;
+  --color-slate: #62676b;
+  --color-fog: #e2e3e4;
+  --color-paper: #ffffff;
+  --color-stone: rgb(98 103 107 / 22%);
+  --color-canvas: #f7f7f5;
+  --color-mint: #62676b;
+  --color-green: #1f8a3b;
+  --color-highlight: #f2d5d5;
+  --grade-excellent: #14532d;
+  --grade-good: #43a047;
+  --grade-neutral: #62676b;
+  --grade-warn: #e8890c;
+  --grade-poor: #e05d5d;
+  --grade-bad: #a80707;
+  --font-ranade:
+    'Ranade', 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-suisseintl: var(--font-ranade);
+  --font-suisse-intl: var(--font-ranade);
+  --font-suisse-mono: var(--font-ranade);
+  --text-caption: 12px;
+  --leading-caption: 1.5;
+  --text-body-sm: 14px;
+  --leading-body-sm: 1.43;
+  --text-body: 16px;
+  --leading-body: 1.5;
+  --text-subheading: 18px;
+  --leading-subheading: 1.38;
+  --text-heading-sm: 20px;
+  --leading-heading-sm: 1.33;
+  --text-heading: 30px;
+  --leading-heading: 1.2;
+  --tracking-heading: -0.75px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --spacing-unit: 4px;
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-28: 28px;
+  --spacing-32: 32px;
+  --spacing-48: 48px;
+  --spacing-64: 64px;
+  --page-max-width: 1100px;
+  --section-gap: 36px;
+  --card-padding: 14px;
+  --element-gap: 8px;
+  --motion-slide-duration: 180ms;
+  --motion-slide-easing: cubic-bezier(0.2, 0, 0, 1);
+  --radius-tags: 10px;
+  --radius-cards: 12px;
+  --radius-inputs: 10px;
+  --radius-buttons: 10px;
+  --radius-heropanel: 16px;
+  --shadow-subtle: inset 0 0 0 1px oklab(0 0 0 / 0.1);
+  --shadow-floating: 0 12px 32px rgb(21 23 25 / 16%);
+  --shadow-category:
+    0 2px 6px rgb(21 23 25 / 6%), 0 10px 28px rgb(21 23 25 / 8%);
+  --shadow-category-hover:
+    0 6px 14px rgb(21 23 25 / 9%), 0 20px 44px rgb(21 23 25 / 14%);
+  --surface-canvas: var(--color-canvas);
+  --surface-paper: var(--color-paper);
+  --surface-stone: var(--color-stone);
+  --surface-fog: var(--color-fog);
+  --surface-interactive-hover: #ededeb;
+  --ink: var(--color-ink-black);
+  --muted: var(--color-slate);
+  --line: var(--color-fog);
+  --white: var(--color-canvas);
+  --red: var(--color-blueprint-blue);
+  --red-dark: var(--color-blueprint-blue-dark);
+  --body: var(--font-ranade);
+  --display: var(--font-ranade);
+  --stadium-background: url('/background/stadion-light.svg');
+  --surface-glass: rgb(255 255 255 / 66%);
+  --glass-border: rgb(21 23 25 / 8%);
+  --glass-blur: 14px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-blueprint-blue: #e30613;
+  --color-blueprint-blue-dark: #ff3038;
+  --color-ink-black: #f4f4f2;
+  --color-carbon: #f4f4f2;
+  --color-slate: #a8adb2;
+  --color-fog: #292d31;
+  --color-paper: #171a1d;
+  --color-stone: rgb(168 173 178 / 18%);
+  --color-canvas: #0e1012;
+  --color-mint: #a8adb2;
+  --color-green: #4cc26a;
+  --color-highlight: #3a191c;
+  --grade-excellent: #4cc26a;
+  --grade-good: #8ce0a4;
+  --grade-neutral: #a8adb2;
+  --grade-warn: #f5a524;
+  --grade-poor: #ff8a80;
+  --grade-bad: #ff3038;
+  --shadow-floating: 0 12px 32px rgb(0 0 0 / 28%);
+  --shadow-category: 0 2px 8px rgb(0 0 0 / 18%), 0 12px 32px rgb(0 0 0 / 22%);
+  --shadow-category-hover:
+    0 6px 16px rgb(0 0 0 / 22%), 0 20px 42px rgb(0 0 0 / 28%);
+  --surface-interactive-hover: #121417;
+  --stadium-background: url('/background/stadion-dark.svg');
+  --surface-glass: rgb(23 26 29 / 62%);
+  --glass-border: rgb(168 173 178 / 16%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-blueprint-blue: #e30613;
+    --color-blueprint-blue-dark: #ff3038;
+    --color-ink-black: #f4f4f2;
+    --color-carbon: #f4f4f2;
+    --color-slate: #a8adb2;
+    --color-fog: #292d31;
+    --color-paper: #171a1d;
+    --color-stone: rgb(168 173 178 / 18%);
+    --color-canvas: #0e1012;
+    --color-mint: #a8adb2;
+    --color-green: #4cc26a;
+    --color-highlight: #3a191c;
+    --grade-excellent: #4cc26a;
+    --grade-good: #8ce0a4;
+    --grade-neutral: #a8adb2;
+    --grade-warn: #f5a524;
+    --grade-poor: #ff8a80;
+    --grade-bad: #ff3038;
+    --shadow-floating: 0 12px 32px rgb(0 0 0 / 28%);
+    --shadow-category: 0 2px 8px rgb(0 0 0 / 18%), 0 12px 32px rgb(0 0 0 / 22%);
+    --shadow-category-hover:
+      0 6px 16px rgb(0 0 0 / 22%), 0 20px 42px rgb(0 0 0 / 28%);
+    --surface-interactive-hover: #121417;
+    --stadium-background: url('/background/stadion-dark.svg');
+    --surface-glass: rgb(23 26 29 / 62%);
+    --glass-border: rgb(168 173 178 / 16%);
+  }
+}
+
+::selection {
+  background: var(--color-highlight);
+  color: var(--color-ink-black);
+}

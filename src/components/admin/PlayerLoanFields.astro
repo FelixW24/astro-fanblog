@@ -1,0 +1,147 @@
+---
+import type { PlayerFormValues } from '../../lib/admin-player';
+import { loanDirection } from '../../lib/player-availability';
+
+interface Props {
+  values: PlayerFormValues;
+}
+const { values } = Astro.props;
+const loanActive = loanDirection(values.squad_status) !== null;
+const outgoing = values.squad_status === 'on-loan';
+---
+
+<section class="editor-panel" data-player-loan-fields hidden={!loanActive}>
+  <div class="section-heading">
+    <div>
+      <span class="section-kicker">Leihe</span><h2>Leihdaten</h2>
+    </div>
+  </div>
+  <p data-loan-hint>
+    {
+      outgoing
+        ? 'Der Spieler ist aktuell an einen anderen Verein verliehen. Trage hier die Daten der Leihe ein.'
+        : 'Der Spieler ist aktuell von einem anderen Verein ausgeliehen. Trage hier die Daten der Leihe ein.'
+    }
+  </p>
+  <div class="player-editor-grid">
+    <label class="field">
+      <span
+        ><span data-loan-partner-label
+          >{outgoing ? 'Verliehen an' : 'Ausgeliehen von'}</span
+        ><span class="required-marker" aria-hidden="true" hidden={!loanActive}
+        ></span></span
+      >
+      <input
+        name="loan_partner_club"
+        value={values.loan_partner_club}
+        maxlength="120"
+        placeholder="Verein"
+        required={loanActive}
+        disabled={!loanActive}
+      />
+    </label>
+    <label class="field">
+      <span
+        >Leihbeginn<span
+          class="required-marker"
+          aria-hidden="true"
+          hidden={!loanActive}></span></span
+      >
+      <input
+        type="date"
+        name="loan_starts_on"
+        value={values.loan_starts_on}
+        required={loanActive}
+        disabled={!loanActive}
+      />
+    </label>
+    <label class="field">
+      <span>Leihende</span>
+      <input
+        type="date"
+        name="loan_ends_on"
+        value={values.loan_ends_on}
+        disabled={!loanActive}
+      />
+      <small>Leer lassen, wenn das Leihende noch offen ist.</small>
+    </label>
+    <label class="field">
+      <span>Quelle (URL)</span>
+      <input
+        type="url"
+        name="loan_source_url"
+        value={values.loan_source_url}
+        placeholder="https://…"
+        disabled={!loanActive}
+      />
+    </label>
+  </div>
+  <label class="field">
+    <span>Notiz</span>
+    <textarea
+      name="loan_note"
+      rows="3"
+      maxlength="500"
+      placeholder="z. B. Saisonleihe mit Kaufoption"
+      disabled={!loanActive}>{values.loan_note}</textarea
+    >
+  </label>
+</section>
+
+<script>
+  function setupLoanFields() {
+    const status = document.querySelector<HTMLSelectElement>(
+      '#player-squad-status',
+    );
+    document
+      .querySelectorAll<HTMLElement>('[data-player-loan-fields]')
+      .forEach((section) => {
+        if (!status) return;
+        const inputs = section.querySelectorAll<
+          HTMLInputElement | HTMLTextAreaElement
+        >('input, textarea');
+        const markers =
+          section.querySelectorAll<HTMLElement>('.required-marker');
+        const partnerLabel = section.querySelector<HTMLElement>(
+          '[data-loan-partner-label]',
+        );
+        const hint = section.querySelector<HTMLElement>('[data-loan-hint]');
+        const starts = section.querySelector<HTMLInputElement>(
+          '[name="loan_starts_on"]',
+        );
+        const ends = section.querySelector<HTMLInputElement>(
+          '[name="loan_ends_on"]',
+        );
+        const update = () => {
+          const active =
+            status.value === 'on-loan' || status.value === 'loan-in';
+          const outgoing = status.value === 'on-loan';
+          section.hidden = !active;
+          inputs.forEach((input) => {
+            input.disabled = !active;
+            input.required =
+              active &&
+              (input.name === 'loan_partner_club' ||
+                input.name === 'loan_starts_on');
+          });
+          markers.forEach((marker) => {
+            marker.hidden = !active;
+          });
+          if (partnerLabel)
+            partnerLabel.textContent = outgoing
+              ? 'Verliehen an'
+              : 'Ausgeliehen von';
+          if (hint)
+            hint.textContent = outgoing
+              ? 'Der Spieler ist aktuell an einen anderen Verein verliehen. Trage hier die Daten der Leihe ein.'
+              : 'Der Spieler ist aktuell von einem anderen Verein ausgeliehen. Trage hier die Daten der Leihe ein.';
+          if (starts && ends) ends.min = starts.value || '';
+        };
+        status.addEventListener('change', update);
+        starts?.addEventListener('input', update);
+        update();
+      });
+  }
+  setupLoanFields();
+  document.addEventListener('astro:page-load', setupLoanFields);
+</script>

@@ -1,0 +1,29 @@
+---
+import type { RadarMetric } from '../lib/player';
+
+interface Props {
+  title: string;
+  metrics: RadarMetric[];
+  unit?: string;
+}
+
+const { title, metrics, unit = '' } = Astro.props;
+---
+
+<ol class="player-bars" aria-label={`${title} als Balkendiagramm`}>
+  {
+    metrics.map((metric, index) => (
+      <li>
+        <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+        <strong>{metric.label}</strong>
+        <i aria-hidden="true">
+          <b style={`--player-value: ${metric.value}%`} />
+        </i>
+        <em>
+          {metric.value}
+          {unit}
+        </em>
+      </li>
+    ))
+  }
+</ol>

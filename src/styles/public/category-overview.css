@@ -1,0 +1,10 @@
+.category-overview {
+  padding-bottom: var(--spacing-64);
+}
+.site-content .category-overview__hero {
+  padding-bottom: 32px;
+}
+.category-overview__feed {
+  padding-top: 20px;
+  border-top: 1px solid var(--color-fog);
+}

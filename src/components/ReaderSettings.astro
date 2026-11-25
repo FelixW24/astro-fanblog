@@ -1,0 +1,526 @@
+---
+import Icon from './Icon.astro';
+import PasswordField from './PasswordField.astro';
+import ProfileAvatarUpload from './ProfileAvatarUpload.astro';
+import ProfileComments from './ProfileComments.astro';
+import ReaderAvatar from './ReaderAvatar.astro';
+import { readerAvatarPublicUrl } from '../lib/avatar-upload';
+import { categories } from '../lib/content';
+import type { OwnComment } from '../lib/profile-comments';
+
+interface Props {
+  profile: {
+    username: string;
+    avatar: string;
+    avatar_url: string | null;
+  } | null;
+  details?: {
+    full_name: string;
+    birth_date: string;
+  } | null;
+  email?: string;
+  editor: boolean;
+  factors: { id: string; friendly_name?: string }[];
+  comments: OwnComment[];
+  commentsCount: number;
+  commentsPage: number;
+  commentsError: boolean;
+  notificationPrefs?: {
+    category: string;
+    email_enabled: boolean;
+    in_app_enabled: boolean;
+  }[];
+}
+
+const {
+  profile,
+  details,
+  email,
+  editor,
+  factors,
+  comments,
+  commentsCount,
+  commentsPage,
+  commentsError,
+  notificationPrefs = [],
+} = Astro.props;
+
+const displayName =
+  profile?.username ?? (editor ? 'Redaktion' : 'Dein Leserkonto');
+const avatarVariant = profile?.avatar ?? 'male';
+const customAvatarUrl = profile?.avatar_url
+  ? readerAvatarPublicUrl(profile.avatar_url)
+  : null;
+const badge = editor ? 'Redaktion' : 'Leserkonto';
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<!-- Profil-Einstellungen: Server-Fragment für das Profil-Modal (siehe ReaderSettingsDialog). -->
+<div class="reader-workspace profile-settings" data-profile-settings>
+  <section
+    class="profile-settings__section"
+    data-profile-section="persoenliche-informationen"
+    aria-label="Persönliche Informationen"
+  >
+    <p class="profile-settings__intro">Dein Platz im Fanblog.</p>
+    <div class="reader-workspace-card profile-card">
+      <div class="profile-identity">
+        <span
+          class="profile-identity__figure"
+          data-avatar-figure
+          {...profile
+            ? {
+                role: 'button',
+                tabindex: '0',
+                'aria-label': 'Profilbild ändern',
+              }
+            : {}}
+        >
+          <ReaderAvatar variant={avatarVariant} />
+          {
+            customAvatarUrl && (
+              <img
+                class="reader-avatar reader-avatar--image"
+                data-avatar-image
+                data-decorative
+                src={customAvatarUrl}
+                alt=""
+                width="72"
+                height="72"
+                decoding="async"
+              />
+            )
+          }
+        </span>
+        <div>
+          <p class="profile-identity__name">{displayName}</p>
+          <p class="profile-identity__meta">{email}</p>
+          <span class="profile-badge">{badge}</span>
+        </div>
+      </div>
+      {
+        profile && (
+          <ProfileAvatarUpload
+            hasCustomAvatar={Boolean(customAvatarUrl)}
+            triggerless
+          />
+        )
+      }
+      {
+        // Redaktionskonten richten kein Leserkonto ein; der Hinweis ist
+        // nur für Leser ohne eingerichtetes Profil gedacht.
+        !profile && !editor && (
+          <p class="profile-setup-hint">
+            <a href="/profil/einrichten">Profil einrichten</a>
+          </p>
+        )
+      }
+    </div>
+    {
+      profile && (
+        <form
+          class="reader-form profile-edit-form"
+          id="profile-edit-form"
+          action="/api/profil/angaben"
+          data-profile-edit-form
+        >
+          <input type="hidden" name="action" value="update-profile" />
+          <p class="required-fields-note">
+            Mit * gekennzeichnete Felder sind Pflichtfelder.
+          </p>
+          <label>
+            <span>
+              Username
+              <span class="required-marker" aria-hidden="true" />
+            </span>
+            <input
+              name="username"
+              value={profile.username}
+              required
+              pattern="[a-zA-Z0-9_]{3,30}"
+              minlength="3"
+              maxlength="30"
+              autocomplete="username"
+            />
+          </label>
+          <p
+            class="username-feedback"
+            data-username-feedback
+            role="status"
+            hidden
+          />
+          <label>
+            <span>
+              Name
+              <span class="required-marker" aria-hidden="true" />
+            </span>
+            <input
+              name="full_name"
+              value={details?.full_name ?? ''}
+              required
+              minlength="2"
+              maxlength="120"
+              autocomplete="name"
+            />
+          </label>
+          <label>
+            <span>
+              Geburtsdatum
+              <span class="required-marker" aria-hidden="true" />
+            </span>
+            <input
+              type="date"
+              name="birth_date"
+              value={details?.birth_date ?? ''}
+              required
+              min="1900-01-01"
+              max={today}
+            />
+          </label>
+          <button type="submit" data-profile-edit-submit>
+            Änderungen speichern
+          </button>
+        </form>
+      )
+    }
+  </section>
+
+  <div
+    class="profile-settings__section"
+    data-profile-section="meine-kommentare"
+    hidden
+  >
+    <ProfileComments
+      comments={comments}
+      count={commentsCount}
+      page={commentsPage}
+      error={commentsError}
+    />
+  </div>
+
+  <section
+    class="profile-settings__section"
+    data-profile-section="passwort"
+    aria-label="Passwort"
+    hidden
+  >
+    <form class="reader-form" action="/api/profil/passwort" data-password-form>
+      <input type="hidden" name="action" value="change-password" />
+      <p class="required-fields-note">
+        Mit * gekennzeichnete Felder sind Pflichtfelder.
+      </p>
+      <PasswordField
+        id="profile-current-password"
+        name="current_password"
+        label="Aktuelles Passwort"
+        autocomplete="current-password"
+      />
+      <button type="button" data-password-verify>Passwort prüfen</button>
+      <fieldset class="profile-password-new" data-password-new disabled>
+        <legend class="visually-hidden">Neues Passwort festlegen</legend>
+        <p class="profile-password-new__caption">
+          <span>Neues Passwort</span>
+        </p>
+        <PasswordField
+          id="profile-new-password"
+          name="password"
+          label="Neues Passwort"
+          autocomplete="new-password"
+          minlength={8}
+          help="Mindestens 8 Zeichen mit Groß- und Kleinbuchstabe, Zahl und Sonderzeichen."
+        />
+        <PasswordField
+          id="profile-new-password-confirmation"
+          name="password_confirmation"
+          label="Neues Passwort wiederholen"
+          autocomplete="new-password"
+          minlength={8}
+        />
+        {
+          factors.length > 0 && (
+            <>
+              <label>
+                Authenticator
+                <span class="required-marker" aria-hidden="true" />
+                <select name="factor_id" required>
+                  {factors.map((factor, index) => (
+                    <option value={factor.id}>
+                      {factor.friendly_name || `Authenticator ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>
+                  Authenticator-Code
+                  <span class="required-marker" aria-hidden="true" />
+                </span>
+                <input
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  minlength="6"
+                  maxlength="6"
+                  required
+                />
+              </label>
+            </>
+          )
+        }
+        <button type="submit" data-password-submit>Passwort speichern</button>
+      </fieldset>
+    </form>
+  </section>
+
+  <section
+    class="profile-settings__section"
+    data-profile-section="darstellung"
+    aria-label="Darstellung"
+    hidden
+  >
+    <p class="profile-settings__intro">
+      Astro Fanblog startet im Dunkelmodus, wenn du nichts anderes speicherst.
+    </p>
+    <div class="profile-display-grid">
+      <div class="profile-display-card">
+        <span class="profile-display-card__icon" aria-hidden="true">
+          <Icon name="sun" size={18} />
+        </span>
+        <h4 class="profile-display-card__title">Farbmodus</h4>
+        <fieldset class="profile-theme-picker" data-theme-picker>
+          <legend class="visually-hidden">Farbmodus</legend>
+          <label class="profile-theme-picker__option">
+            <input type="radio" name="theme-preference" value="light" />
+            <span>Hell</span>
+          </label>
+          <label class="profile-theme-picker__option">
+            <input type="radio" name="theme-preference" value="dark" />
+            <span>Dunkel</span>
+          </label>
+          <label class="profile-theme-picker__option">
+            <input type="radio" name="theme-preference" value="system" />
+            <span>System</span>
+          </label>
+        </fieldset>
+      </div>
+      <div class="profile-display-card">
+        <span class="profile-display-card__icon" aria-hidden="true">
+          <Icon name="hourglass" size={18} />
+        </span>
+        <h4 class="profile-display-card__title">Datensparmodus</h4>
+        <p
+          class="profile-display-card__text"
+          data-data-saver-status
+          role="status"
+        >
+          Animationen, nicht-kritische Bilder und Tracking werden geladen.
+        </p>
+        <label class="reader-checkbox profile-data-saver">
+          <input
+            type="checkbox"
+            name="data-saver"
+            data-data-saver-toggle
+            class="profile-data-saver__input"
+          />
+          <span class="profile-data-saver__label"
+            >Datensparmodus aktivieren</span
+          >
+          <span class="profile-data-saver__switch" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="profile-settings__section"
+    data-profile-section="benachrichtigungen"
+    aria-label="Benachrichtigungen"
+    hidden
+  >
+    <form
+      class="reader-form notification-prefs"
+      action="/api/profil/benachrichtigungen"
+      data-notification-prefs-form
+    >
+      <input type="hidden" name="action" value="update-notifications" />
+      <fieldset class="notification-prefs__list">
+        <legend class="visually-hidden">
+          Benachrichtigungen für neue Beiträge pro Kategorie
+        </legend>
+        {
+          categories.map((category) => {
+            const pref = notificationPrefs.find(
+              (entry) => entry.category === category.slug,
+            );
+            const enabled = pref
+              ? pref.email_enabled || pref.in_app_enabled
+              : false;
+            return (
+              <div class="notification-prefs__row">
+                <label
+                  class="notification-prefs__switch-label"
+                  for={`pref_${category.slug}`}
+                >
+                  <span class="notification-prefs__category">
+                    {category.label}
+                  </span>
+                  <input
+                    type="checkbox"
+                    id={`pref_${category.slug}`}
+                    name={`pref_${category.slug}`}
+                    class="notification-prefs__input"
+                    checked={enabled}
+                    data-notification-prefs-toggle
+                  />
+                  <span class="notification-prefs__switch" aria-hidden="true" />
+                </label>
+              </div>
+            );
+          })
+        }
+      </fieldset>
+    </form>
+    <p class="reader-workspace-note">
+      <Icon name="info" /> Benachrichtigungen werden per E-Mail versendet.
+    </p>
+  </section>
+
+  <section
+    class="profile-settings__section"
+    data-profile-section="konto-loeschen"
+    aria-label="Konto löschen"
+    hidden
+  >
+    <details
+      class="reader-workspace-card account-deletion"
+      data-account-deletion
+    >
+      <summary>
+        <span class="account-deletion-summary-copy">
+          <span class="overline">Konto verwalten</span>
+          <span class="account-deletion-title" id="delete-account-title"
+            >Konto löschen</span
+          >
+          <span class="account-deletion-intro"
+            >Konto- und Profildaten löschen. Veröffentlichte Kommentare bleiben
+            anonymisiert erhalten.</span
+          >
+        </span>
+        <span class="account-deletion-disclosure"
+          ><span>Löschung vorbereiten</span><Icon name="arrow-down" /></span
+        >
+      </summary>
+      <div class="account-deletion-body">
+        <p class="reader-workspace-note account-deletion-warning">
+          <Icon name="info" /><strong
+            >Diese Aktion kann nicht rückgängig gemacht werden.</strong
+          >
+        </p>
+        <p id="account-deletion-description">
+          Bei der Kontolöschung löschen wir deine Konto- und Profildaten.
+          Bereits veröffentlichte Kommentare bleiben ohne Zuordnung zu deinem
+          Konto anonymisiert bestehen. Sie werden anschließend als „Gelöschter
+          Nutzer“ angezeigt. Bewertungen, Sperren und sonstige kontobezogene
+          Daten sowie nicht veröffentlichte Kommentare werden gelöscht.
+          Antworten anderer Nutzer bleiben erhalten. Du wirst auf allen Geräten
+          abgemeldet. Nach der Prüfung deiner Angaben schicken wir dir eine
+          Bestätigungsmail; gelöscht wird erst, wenn du den Link darin öffnest
+          und die Löschung bestätigst.
+        </p>
+        <form
+          action="/api/profil/konto-loeschen"
+          class="reader-form account-deletion-form"
+          data-account-deletion-form
+          aria-describedby="account-deletion-description"
+        >
+          <p class="required-fields-note">
+            Mit * gekennzeichnete Felder sind Pflichtfelder.
+          </p>
+          <input type="hidden" name="action" value="delete-account" />
+          <label
+            ><span
+              >E-Mail-Adresse zur Bestätigung<span
+                class="required-marker"
+                aria-hidden="true"></span></span
+            ><input
+              type="email"
+              name="email"
+              autocomplete="email"
+              placeholder="Deine E-Mail-Adresse"
+              required
+            /></label
+          >
+          <PasswordField
+            id="delete-password"
+            name="password"
+            label="Aktuelles Passwort"
+            autocomplete="current-password"
+          />
+          {
+            factors.length > 0 && (
+              <>
+                <label>
+                  Authenticator
+                  <span class="required-marker" aria-hidden="true" />
+                  <select name="factor_id" required>
+                    {factors.map((factor, index) => (
+                      <option value={factor.id}>
+                        {factor.friendly_name || `Authenticator ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>
+                    Authenticator-Code
+                    <span class="required-marker" aria-hidden="true" />
+                  </span>
+                  <input
+                    name="code"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    minlength="6"
+                    maxlength="6"
+                    required
+                  />
+                </label>
+              </>
+            )
+          }
+          <label class="reader-checkbox"
+            ><input type="checkbox" name="confirm_delete" required /><span
+              >Ich möchte mein Konto und die genannten kontobezogenen Daten
+              endgültig löschen.<span class="required-marker" aria-hidden="true"
+              ></span></span
+            ></label
+          >
+          <div class="account-deletion-actions">
+            <button type="button" data-account-deletion-cancel>Abbrechen</button
+            >
+            <button type="submit" data-account-deletion-submit
+              >Löschung per E-Mail bestätigen</button
+            >
+          </div>
+        </form>
+      </div>
+    </details>
+  </section>
+
+  <section
+    class="profile-settings__section"
+    data-profile-section="abmelden"
+    aria-label="Abmelden"
+    hidden
+  >
+    <p class="profile-settings__intro">
+      Du meldest dich von diesem Gerät ab. Deine Kommentare bleiben erhalten.
+    </p>
+    <form method="post" action="/abmelden" class="reader-form">
+      <button type="submit">
+        <Icon name="external-link" size={18} /> Abmelden
+      </button>
+    </form>
+  </section>
+</div>

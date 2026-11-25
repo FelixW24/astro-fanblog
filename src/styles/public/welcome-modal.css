@@ -1,0 +1,188 @@
+/* Willkommens-Modal auf den öffentlichen Seiten: gleiche Tokens und
+   Dialog-Optik wie das Fehlermelde-Modal (bug-report.css) und das
+   Profil-Modal. Die Felder greifen auf .reader-form aus readers.css zurück. */
+.welcome-modal {
+  /* Der Panda-Reset setzt die native Zentrierung des <dialog>-Elements
+     (margin: auto) zurück; ohne diese Deklaration klebt das Modal oben links. */
+  margin: auto;
+  width: min(640px, 100% - 32px);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-black);
+}
+.welcome-modal::backdrop {
+  background: rgb(14 16 18 / 62%);
+}
+html:has(dialog.welcome-modal[open]) {
+  overflow: hidden;
+}
+.welcome-modal__surface {
+  display: flex;
+  flex-direction: column;
+  max-height: min(880px, 92vh);
+  overflow: hidden;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-heropanel);
+  background:
+    linear-gradient(var(--color-paper), var(--color-paper)), var(--color-canvas);
+  box-shadow: var(--shadow-floating);
+}
+.welcome-modal__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-fog);
+}
+.welcome-modal__header h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+/* Newsletter-Anmeldung als aufklappbare Karte: Ein Container (Rand, Radius,
+   Canvas) fasst die Toggle-Zeile und — nach dem Aufklappen — das E-Mail-
+   Formular im Inneren zusammen; es entsteht kein zweites Element unter der
+   Karte. Der Toggle-Inhalt (Brief-Icon „mail“, Label, Chevron) liegt in
+   einer Reihe, im aktiven Zustand färbt sich das Icon akzentuiert und das
+   Chevron dreht nach oben. */
+.welcome-modal__signup {
+  display: flex;
+  width: 100%;
+  /* Karte darf als Flex-Kind des (höhenbegrenzten) Modal-Body nicht
+     gestaucht werden: Sie behält ihre Inhaltshöhe, enge Viewports scrollen
+     stattdessen über den ohnehin vorhandenen Body-Overflow. */
+  flex: 0 0 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  background: var(--color-canvas);
+}
+.welcome-modal__signup-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-black);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.welcome-modal__signup-toggle:hover,
+.welcome-modal__signup.is-active .welcome-modal__signup-toggle {
+  background: var(--surface-interactive-hover);
+}
+.welcome-modal__signup-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+}
+.welcome-modal__signup.is-active .welcome-modal__signup-icon,
+.welcome-modal__signup.is-active .welcome-modal__signup-chevron {
+  color: var(--color-red, #d20a0a);
+}
+.welcome-modal__signup-label {
+  flex: 1 1 auto;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+}
+.welcome-modal__signup-chevron {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-ink-soft, #62676b);
+  transition: transform 0.2s ease;
+}
+.welcome-modal__signup.is-active .welcome-modal__signup-chevron {
+  transform: rotate(180deg);
+}
+/* Formular im Inneren der Karte: keine eigenen Ränder (auch nicht rechts /
+   unten / links aus dem allgemeinen Regelsatz), nur eine feine Trennlinie
+   unter der Toggle-Zeile. */
+.welcome-modal__signup .welcome-modal__form {
+  padding: 16px 14px;
+  border: 0;
+  border-top: 1px solid var(--color-fog);
+  border-radius: 0;
+  background: transparent;
+}
+.welcome-modal__close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.welcome-modal__close:hover {
+  background: var(--surface-interactive-hover);
+}
+.welcome-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 28px 28px;
+  overflow-y: auto;
+}
+.welcome-modal__body > p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.welcome-modal__form {
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  background: var(--color-canvas);
+}
+.welcome-modal__form button[type='submit'] {
+  align-self: flex-start;
+}
+.welcome-modal__error {
+  margin: 0;
+  color: var(--color-red, #d20a0a);
+  font-size: 14px;
+}
+.welcome-modal__status {
+  margin: 0;
+  color: var(--color-ink-black);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.welcome-modal__privacy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-ink-soft, #62676b);
+}
+.welcome-modal__continue {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font-weight: 600;
+  cursor: pointer;
+}
+.welcome-modal__continue:hover {
+  background: var(--surface-interactive-hover);
+}

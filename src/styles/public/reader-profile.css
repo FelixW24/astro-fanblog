@@ -1,0 +1,548 @@
+/* Reader account workspaces: opaque surfaces over the existing stadium artwork. */
+.profile-comments {
+  margin-top: var(--spacing-28);
+  scroll-margin-top: 100px;
+}
+.profile-comments h2 {
+  margin-top: 0;
+}
+.profile-comments-empty {
+  display: grid;
+  min-height: 240px;
+  place-content: center;
+  padding: var(--spacing-48) var(--spacing-20);
+  text-align: center;
+}
+.profile-comments-empty p {
+  margin: var(--spacing-4) 0 0;
+  color: var(--workspace-muted);
+  font-size: var(--text-body-sm);
+}
+.profile-comments-list {
+  display: grid;
+  gap: var(--spacing-16);
+  padding: 0;
+  list-style: none;
+}
+.profile-comments-list a {
+  display: block;
+  padding: var(--spacing-20);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-cards);
+  color: var(--color-ink-black);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.profile-comments-list a:hover {
+  background: var(--surface-interactive-hover);
+}
+.profile-comments-list h3 {
+  margin-block: var(--spacing-8);
+  font-size: var(--text-heading-sm);
+}
+.profile-comment-meta {
+  color: var(--workspace-muted);
+  font-size: var(--text-caption);
+}
+.profile-comment-body {
+  white-space: pre-wrap;
+}
+.profile-comment-link {
+  color: var(--workspace-link);
+  font-weight: 600;
+}
+.profile-comments-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-16);
+  align-items: center;
+}
+.reader-workspace {
+  --workspace-muted: color-mix(
+    in srgb,
+    var(--color-slate) 60%,
+    var(--color-ink-black)
+  );
+  --workspace-link: color-mix(
+    in srgb,
+    var(--color-blueprint-blue-dark) 65%,
+    var(--color-ink-black)
+  );
+  max-width: 880px;
+  padding-block: var(--spacing-48) var(--spacing-64);
+}
+.reader-workspace.onboarding-panel {
+  max-width: 720px;
+  overflow-x: clip;
+}
+/* Onboarding läuft im Auth-Flow (Seite rendert die feste Vollbild-Bühne
+   .reader-auth-stage wie Anmelden/Registrieren): Panel zentriert, volle
+   Karten-Optik, damit die Bühne nicht vom übrigen Workflow abweicht. */
+.reader-auth-stage .reader-workspace.onboarding-panel {
+  width: min(100%, 720px);
+  max-width: none;
+  margin: auto;
+  padding: clamp(20px, 3.5vw, 30px);
+  background: var(--color-paper);
+  border: 1px solid var(--color-fog);
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 18%);
+}
+.reader-workspace.onboarding-panel .reader-workspace-card,
+.reader-workspace.onboarding-panel .reader-form,
+.reader-workspace.onboarding-panel .reader-form label {
+  min-width: 0;
+}
+.reader-workspace > .overline {
+  margin: 0;
+  color: var(--workspace-link);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.site-content .reader-workspace h1 {
+  margin-block: var(--spacing-12);
+  font-size: clamp(30px, 4vw, 48px);
+}
+.site-content .reader-workspace > h1 + p {
+  margin: 0 0 var(--spacing-32);
+  color: var(--workspace-muted);
+}
+.reader-workspace-card {
+  padding: var(--spacing-32);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-heropanel);
+  background:
+    linear-gradient(var(--color-paper), var(--color-paper)), var(--color-canvas);
+}
+.reader-workspace :is(input, select, button, a, summary):focus-visible {
+  outline: 2px solid var(--color-ink-black);
+  outline-offset: 4px;
+}
+.reader-workspace .reader-form {
+  gap: var(--spacing-20);
+}
+.reader-workspace
+  .reader-form
+  :is(input:not([type='checkbox'], [type='radio']), select) {
+  min-width: 0;
+  min-height: 48px;
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  border: 0;
+  border-radius: var(--radius-inputs);
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font: inherit;
+}
+.reader-workspace .reader-form .password-control input {
+  padding-inline: 44px 48px;
+}
+.reader-workspace :is(button:not(.password-toggle), .reader-workspace-primary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  min-height: 48px;
+  padding: var(--spacing-12) var(--spacing-20);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.reader-workspace
+  :is(button:not(.password-toggle), .reader-workspace-primary):hover:not(
+    :disabled
+  ) {
+  background: var(--surface-interactive-hover);
+}
+.reader-workspace
+  :is(
+    .reader-workspace-primary,
+    [data-onboarding-next],
+    [data-onboarding-submit],
+    [data-account-deletion-submit],
+    [data-password-submit]
+  ) {
+  border-color: var(--color-blueprint-blue-dark);
+  background: var(--color-blueprint-blue-dark);
+  color: white;
+}
+.reader-workspace
+  :is(
+    .reader-workspace-primary,
+    [data-onboarding-next],
+    [data-onboarding-submit],
+    [data-account-deletion-submit],
+    [data-password-submit]
+  ):hover:not(:disabled) {
+  background: var(--color-blueprint-blue);
+}
+.reader-workspace button:disabled {
+  border-color: var(--color-fog);
+  background: var(--color-stone);
+  color: var(--workspace-muted);
+  cursor: not-allowed;
+}
+/* Neues Passwort im eigenen Kasten: gesperrt wirkt er ausgegraut, nach der
+   bestätigten Prüfung aktiviert er sich – ohne Fokus-Sprung in die Felder. */
+.reader-workspace .profile-password-new {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: var(--spacing-20);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-heropanel);
+  background: var(--color-paper);
+  transition:
+    border-color 200ms ease,
+    opacity 200ms ease;
+}
+.reader-workspace
+  .profile-password-new[disabled]
+  .profile-password-new__caption {
+  color: var(--workspace-muted);
+}
+.reader-workspace .profile-password-new:not([disabled]) {
+  border-color: var(--color-blueprint-blue);
+}
+.reader-workspace .profile-password-new__caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  margin: 0;
+  font-weight: 600;
+}
+.reader-workspace .profile-password-new[disabled] :is(input, select) {
+  border-color: var(--color-fog);
+  background: var(--color-stone);
+  color: var(--workspace-muted);
+  cursor: not-allowed;
+}
+/* Bestätigtes aktuelles Passwort: readonly (wird mitgesendet) und optisch
+   fertig, der aktive rote Kasten zeigt, wo es weitergeht. */
+.reader-workspace .reader-form input[data-password-verified] {
+  border-color: var(--color-fog);
+  background: var(--color-stone);
+  color: var(--workspace-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-workspace .profile-password-new {
+    transition: none;
+  }
+}
+.reader-workspace [hidden] {
+  display: none !important;
+}
+.reader-workspace-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-inputs);
+  background: var(--color-stone);
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}
+.reader-workspace-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+/* Stepper, visible caption and fields share one card. */
+.onboarding-card .onboarding-progress ol {
+  gap: var(--spacing-16);
+  margin: 0;
+}
+.onboarding-card .onboarding-progress li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 0;
+  border: 0;
+  color: var(--workspace-muted);
+}
+.onboarding-number {
+  display: grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--color-fog);
+  border-radius: 50%;
+  font-size: var(--text-body-sm);
+}
+.onboarding-card li:is([aria-current='step'], .is-complete) .onboarding-number {
+  background: var(--color-blueprint-blue-dark);
+  border-color: var(--color-blueprint-blue-dark);
+  color: white;
+}
+.onboarding-card li[aria-current='step'] {
+  color: var(--color-ink-black);
+}
+.reader-workspace .onboarding-step-caption {
+  margin: var(--spacing-28) 0 var(--spacing-20);
+  padding-top: var(--spacing-20);
+  border-top: 1px solid var(--color-fog);
+  color: var(--workspace-muted);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.onboarding-card .reader-form fieldset {
+  display: grid;
+  min-width: 0;
+  gap: var(--spacing-20);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.onboarding-card legend {
+  margin-bottom: var(--spacing-16);
+  padding: 0;
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+.onboarding-card fieldset > p {
+  margin: 0;
+}
+.onboarding-card
+  fieldset
+  > p:not(
+    .reader-workspace-note,
+    .onboarding-email-status,
+    .onboarding-email-warning
+  ) {
+  color: var(--workspace-muted);
+}
+.onboarding-username-control {
+  position: relative;
+  display: block;
+}
+.onboarding-username-control > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: grid;
+  width: 48px;
+  place-items: center;
+  border-right: 1px solid var(--color-fog);
+  color: var(--workspace-muted);
+}
+.onboarding-card .reader-form input[name='username'] {
+  padding-left: 64px;
+}
+.onboarding-card small {
+  color: var(--workspace-muted);
+  font-size: var(--text-caption);
+}
+.onboarding-card .onboarding-actions {
+  padding-top: var(--spacing-20);
+  border-top: 1px solid var(--color-fog);
+}
+/* Profilbild im Onboarding: Vorschau neben der Upload-Schaltfläche. Ohne
+   eigenes Bild liegt das Icon zum gewählten Geschlecht darunter. */
+.onboarding-avatar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+}
+.onboarding-avatar__figure {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+}
+.onboarding-avatar__figure .reader-avatar {
+  width: 100%;
+  height: 100%;
+}
+.onboarding-avatar__figure .reader-avatar--image {
+  position: absolute;
+  inset: 0;
+}
+/* Der Panda-Reset überschreibt hidden, daher der explizite Guard. */
+.onboarding-avatar__figure .reader-avatar[hidden] {
+  display: none;
+}
+.onboarding-avatar__control {
+  min-width: 0;
+}
+.onboarding-avatar__hint {
+  margin: 0 0 var(--spacing-12);
+  color: var(--workspace-muted);
+  font-size: var(--text-body-sm);
+}
+.reader-workspace input:is([type='radio'], [type='checkbox']) {
+  accent-color: var(--color-blueprint-blue-dark);
+}
+/* Identity and everyday actions stay separate from destructive operations. */
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-20);
+  padding-bottom: var(--spacing-28);
+}
+.profile-identity > .reader-avatar {
+  width: 72px;
+  height: 72px;
+}
+.profile-identity > div {
+  min-width: 0;
+}
+.profile-identity h2 {
+  margin: 0 0 var(--spacing-8);
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+.reader-workspace .profile-identity p {
+  margin: 0 0 var(--spacing-12);
+  color: var(--workspace-muted);
+  overflow-wrap: anywhere;
+}
+.profile-badge {
+  display: inline-block;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-tags);
+  font-size: var(--text-caption);
+}
+.account-deletion {
+  margin-top: var(--spacing-28);
+  padding: 0;
+  overflow: hidden;
+}
+.account-deletion summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-28);
+  padding: var(--spacing-28) var(--spacing-32);
+  list-style: none;
+  cursor: pointer;
+}
+.account-deletion summary::-webkit-details-marker {
+  display: none;
+}
+.account-deletion summary:focus-visible {
+  outline-offset: -5px;
+}
+.account-deletion-summary-copy {
+  display: grid;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+.account-deletion .overline {
+  color: var(--workspace-muted);
+  font-size: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.account-deletion-title {
+  font-size: var(--text-heading-sm);
+  font-weight: 700;
+}
+.account-deletion-intro {
+  max-width: 480px;
+  color: var(--workspace-muted);
+  font-size: var(--text-body-sm);
+}
+.account-deletion-disclosure {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--workspace-link);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+}
+.account-deletion[open] .account-deletion-disclosure svg {
+  transform: rotate(180deg);
+}
+.account-deletion-body {
+  padding: 0 var(--spacing-32) var(--spacing-32);
+  border-top: 1px solid var(--color-fog);
+}
+.account-deletion-warning {
+  border-left: 3px solid var(--color-blueprint-blue-dark);
+}
+.reader-workspace .account-deletion-body > p {
+  margin-block: var(--spacing-20);
+}
+.account-deletion-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding-top: var(--spacing-20);
+  border-top: 1px solid var(--color-fog);
+}
+.account-deletion-form .reader-checkbox {
+  align-items: flex-start;
+}
+.account-deletion-form .reader-checkbox input {
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .reader-workspace {
+    padding-block: var(--spacing-28) var(--spacing-48);
+  }
+  .reader-workspace-card {
+    padding: var(--spacing-20);
+  }
+  .site-content .reader-workspace h1 {
+    font-size: clamp(26px, 8vw, 48px);
+  }
+  .onboarding-card .onboarding-progress ol {
+    gap: var(--spacing-8);
+  }
+  .onboarding-card .onboarding-progress li {
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: var(--text-caption);
+  }
+  /* Aktions-Buttons auf sehr schmalen Screens kompakter, damit
+     "Profil abschließen" nicht umbricht und der Button nicht überläuft. */
+  .onboarding-actions button {
+    padding-inline: var(--spacing-12);
+    font-size: var(--text-body-sm);
+    white-space: nowrap;
+  }
+  @media (max-width: 360px) {
+    .onboarding-actions button {
+      white-space: normal;
+      max-width: 100%;
+    }
+  }
+  .profile-identity {
+    gap: var(--spacing-16);
+  }
+  .profile-identity > .reader-avatar {
+    width: 56px;
+    height: 56px;
+  }
+  .account-deletion {
+    padding: 0;
+  }
+  .account-deletion summary {
+    align-items: flex-start;
+    padding: var(--spacing-20);
+    gap: var(--spacing-12);
+  }
+  .account-deletion-disclosure > span {
+    display: none;
+  }
+  .account-deletion-body {
+    padding: 0 var(--spacing-20) var(--spacing-20);
+  }
+  .account-deletion-actions {
+    flex-direction: column-reverse;
+  }
+}

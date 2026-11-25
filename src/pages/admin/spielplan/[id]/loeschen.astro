@@ -1,0 +1,38 @@
+---
+import { getAdmin, isSameOrigin } from '../../../../lib/admin';
+import { logAdminAction } from '../../../../lib/audit-log';
+
+if (Astro.request.method !== 'POST' || !isSameOrigin(Astro.request)) {
+  return new Response('Method Not Allowed', {
+    status: 405,
+    headers: { Allow: 'POST' },
+  });
+}
+
+const id = Number(Astro.params.id);
+if (!Number.isSafeInteger(id) || id < 1) return Astro.redirect('/404');
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+const { error } = await supabase
+  .from('matches')
+  .delete()
+  .eq('id', id)
+  .select('id')
+  .maybeSingle();
+if (error)
+  return new Response('Das Spiel konnte nicht gelöscht werden.', {
+    status: 500,
+  });
+logAdminAction({
+  action: 'delete',
+  entity: 'match',
+  entityId: id,
+  actorEmail: user.email ?? undefined,
+});
+return Astro.redirect('/admin/spielplan?saved=deleted', 303);
+---

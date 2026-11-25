@@ -1,0 +1,155 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import PlayerDeleteDialog from '../../../components/admin/PlayerDeleteDialog.astro';
+import PlayerPositionGroups from '../../../components/admin/PlayerPositionGroups.astro';
+import { getAdmin } from '../../../lib/admin';
+import { squadAreas, squadAreaForStatus } from '../../../lib/admin-squad';
+import { squadStatuses } from '../../../lib/player';
+import type { Player } from '../../../lib/content';
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+const { data, error } = await supabase
+  .from('players')
+  .select('*')
+  .order('shirt_number', { ascending: true, nullsFirst: false })
+  .order('name');
+const players: Player[] = data ?? [];
+const area =
+  squadAreas.find(
+    ({ value }) => value === Astro.url.searchParams.get('bereich'),
+  ) ?? squadAreas[0];
+const saved = Astro.url.searchParams.get('saved') === 'updated';
+const deleted = Astro.url.searchParams.get('saved') === 'deleted';
+---
+
+<AdminLayout title="Spielerprofile" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading">
+    <div>
+      <h1>Spielerprofile</h1>
+    </div>
+    <div class="admin-page-actions">
+      <a class="admin-secondary-button" href="/kader" target="_blank">
+        <Icon name="external-link" size={16} /> Kader ansehen
+      </a>
+      <a
+        class="admin-primary-button"
+        href={`/admin/spieler/neu?squad_status=${area.statuses[0]}`}
+      >
+        <Icon name="plus" size={16} /> Spieler anlegen
+      </a>
+    </div>
+  </header>
+  {
+    saved && (
+      <div
+        class="admin-alert admin-alert--success"
+        role="status"
+        data-notification
+      >
+        Spielerprofil erfolgreich gespeichert.
+      </div>
+    )
+  }
+  {
+    deleted && (
+      <div
+        class="admin-alert admin-alert--success"
+        role="status"
+        data-notification
+      >
+        Spielerprofil und zugehörige Diagramme wurden gelöscht.
+      </div>
+    )
+  }
+  <nav class="admin-stats player-area-nav" aria-label="Kaderbereiche">
+    {
+      squadAreas.map((item) => (
+        <a
+          href={`/admin/spieler?bereich=${item.value}`}
+          aria-current={item.value === area.value ? 'page' : undefined}
+        >
+          <span>{item.label}</span>
+          <strong>
+            {
+              players.filter(
+                (player) =>
+                  squadAreaForStatus(player.squad_status) === item.value,
+              ).length
+            }
+          </strong>
+        </a>
+      ))
+    }
+  </nav>
+  {
+    error ? (
+      <div class="admin-alert admin-alert--error" role="alert">
+        Die Spieler konnten nicht geladen werden: {error.message}
+      </div>
+    ) : (
+      <div class="player-squad-sections">
+        {area.statuses.map((status) => {
+          const members = players.filter(
+            (player) => player.squad_status === status,
+          );
+          const label =
+            squadStatuses.find(({ value }) => value === status)?.label ??
+            status;
+          // Der Kaderbereich heißt oben bereits „Kader" — die zusätzliche
+          // Überschrift „Profikader" entfällt daher nur für first-team.
+          const showHeading = status !== 'first-team';
+          return (
+            <section
+              aria-labelledby={showHeading ? `section-${status}` : undefined}
+            >
+              {showHeading && (
+                <header class="player-squad-heading">
+                  <h2 id={`section-${status}`}>{label}</h2>
+                </header>
+              )}
+              <PlayerPositionGroups players={members} status={status} />
+            </section>
+          );
+        })}
+      </div>
+    )
+  }
+  <PlayerDeleteDialog />
+</AdminLayout>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>(
+    '[data-player-delete-dialog]',
+  );
+  const title = dialog?.querySelector<HTMLElement>(
+    '[data-player-delete-title]',
+  );
+  const form = dialog?.querySelector<HTMLFormElement>(
+    '[data-player-delete-form]',
+  );
+  const confirmInput = dialog?.querySelector<HTMLInputElement>(
+    '[data-player-delete-confirm]',
+  );
+
+  document
+    .querySelectorAll<HTMLAnchorElement>('[data-player-delete]')
+    .forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!dialog || !title || !form || !confirmInput) return;
+        title.textContent = `${link.dataset.playerName} endgültig löschen?`;
+        form.action = link.getAttribute('href') ?? '';
+        confirmInput.value = link.dataset.playerId ?? '';
+        dialog.showModal();
+      });
+    });
+
+  dialog
+    ?.querySelector('[data-player-delete-cancel]')
+    ?.addEventListener('click', () => dialog.close());
+</script>

@@ -1,0 +1,41 @@
+/* Native required state drives the visual marker, including conditional fields. */
+.required-marker {
+  display: none;
+  color: currentColor;
+  margin-inline-start: 0.25em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Keep visual punctuation out of the field's accessible name and label text. */
+.required-marker::after {
+  content: '*';
+}
+
+label:has(:is(input, select, textarea)[required]:not(:disabled))
+  .required-marker,
+.required-marker--always {
+  display: inline;
+}
+
+/* Keep the star with its caption; character counters stay at the far edge. */
+.field > span:has(> .required-marker) {
+  justify-content: flex-start;
+}
+
+.field > span:has(> .required-marker) > small {
+  margin-inline-start: auto;
+}
+
+form > .required-fields-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-ink-black);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+form:not(:has(:is(input, select, textarea)[required]:not(:disabled)))
+  > .required-fields-note {
+  display: none;
+}

@@ -1,0 +1,173 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { createRequestClient } from '../lib/supabase';
+import { isSameOrigin } from '../lib/admin';
+import {
+  parseAccountRegistration,
+  registrationAuthFailure,
+  safeReturnPath,
+} from '../lib/reader';
+import SessionNotice from '../components/SessionNotice.astro';
+import PasswordField from '../components/PasswordField.astro';
+import Icon from '../components/Icon.astro';
+import RegistrationConfirmation from '../components/RegistrationConfirmation.astro';
+import {
+  authEmailHash,
+  logAuthFailure,
+  signOutSafely,
+} from '../lib/auth-security';
+import {
+  signupResendCooldown,
+  signupResendRateLimit,
+} from '../lib/auth-rate-limit';
+import '../styles/public/readers.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const next = safeReturnPath(Astro.url.searchParams.get('weiter'));
+if (Astro.locals.readerUser) return Astro.redirect('/');
+let error = '';
+let success = false;
+let values = parseAccountRegistration(new FormData()).values;
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const parsed = parseAccountRegistration(await Astro.request.formData());
+    values = parsed.values;
+    error = parsed.error ?? '';
+    if (!error) {
+      const supabase = createRequestClient(Astro);
+      const { email, password } = values;
+      const confirmationUrl = new URL('/auth/bestaetigen', Astro.url.origin);
+      confirmationUrl.searchParams.set('weiter', next);
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: confirmationUrl.href,
+        },
+      });
+      if (authError) {
+        logAuthFailure(
+          'signup_failed',
+          { status: authError.status, code: authError.code },
+          {
+            address: Astro.clientAddress,
+            emailHash: authEmailHash(email),
+          },
+        );
+        const failure = registrationAuthFailure(authError.status);
+        if (failure.serverError) Astro.response.status = 503;
+        error = failure.message;
+      } else {
+        if (data.session && !(await signOutSafely(supabase))) {
+          Astro.response.status = 503;
+          error =
+            'Dein Konto wurde erstellt, aber die Sitzung konnte nicht vollständig beendet werden. Bitte melde dich erneut ab.';
+        } else {
+          // Der Mailversand startet den einminütigen Resend-Cooldown; die
+          // Bestätigungskarte zeigt die Restzeit und bietet das Neusenden an.
+          signupResendRateLimit(values.email);
+          success = true;
+        }
+      }
+    }
+    values.password = '';
+    values.password_confirmation = '';
+  }
+}
+---
+
+<BaseLayout title="Registrieren | Astro Fanblog">
+  <div class="reader-auth-stage">
+    <section
+      class:list={[
+        'reader-panel reader-panel--auth shell',
+        { 'reader-panel--confirmation': success },
+      ]}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reader-auth-title"
+    >
+      {
+        !success && (
+          <>
+            <p class="overline">Mitreden im Fanblog</p>
+            <PageHeading id="reader-auth-title">
+              Leserkonto erstellen
+            </PageHeading>
+          </>
+        )
+      }
+      {
+        error && (
+          <p role="alert" data-notification>
+            {error}
+          </p>
+        )
+      }
+      {
+        success ? (
+          <RegistrationConfirmation
+            {next}
+            email={values.email}
+            cooldown={signupResendCooldown(values.email)}
+          />
+        ) : (
+          <form method="post" class="reader-form reader-form--auth">
+            <p class="required-fields-note">
+              Mit * gekennzeichnete Felder sind Pflichtfelder.
+            </p>
+            <label>
+              <span>
+                E-Mail-Adresse
+                <span class="required-marker" aria-hidden="true" />
+              </span>
+              <span class="reader-input-control">
+                <Icon name="mail" size={17} class="reader-input-icon" />
+                <input
+                  type="email"
+                  name="email"
+                  autocomplete="email"
+                  value={values.email}
+                  required
+                  maxlength="254"
+                />
+              </span>
+            </label>
+            <PasswordField
+              id="registration-password"
+              name="password"
+              label="Passwort"
+              autocomplete="new-password"
+              minlength={8}
+              help="Mindestens 8 Zeichen mit Groß- und Kleinbuchstabe, Zahl und Sonderzeichen."
+            />
+            <PasswordField
+              id="registration-password-confirmation"
+              name="password_confirmation"
+              label="Passwort wiederholen"
+              autocomplete="new-password"
+              minlength={8}
+            />
+            <SessionNotice requireTerms />
+            <button type="submit">Registrieren</button>
+          </form>
+        )
+      }
+      {
+        !success && (
+          <p class="reader-auth-switch">
+            <span>Bereits registriert?</span>
+            <a href={`/anmelden?weiter=${encodeURIComponent(next)}`}>
+              Zur Anmeldung
+            </a>
+          </p>
+        )
+      }
+    </section>
+  </div>
+</BaseLayout>

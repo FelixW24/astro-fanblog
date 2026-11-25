@@ -1,0 +1,464 @@
+---
+import PageHeading from './PageHeading.astro';
+import Icon from './Icon.astro';
+import ProfileAvatarUpload from './ProfileAvatarUpload.astro';
+import ReaderAvatar from './ReaderAvatar.astro';
+import { readerAvatarPublicUrl } from '../lib/avatar-upload';
+import { readerGenders, type parseProfileSetup } from '../lib/reader';
+import '../styles/public/readers.css';
+import '../styles/public/reader-profile.css';
+
+interface Props {
+  values: ReturnType<typeof parseProfileSetup>['values'];
+  destination: string;
+  emailConfirmed: boolean;
+  email?: string;
+  error?: string;
+}
+const { values, destination, emailConfirmed, email, error = '' } = Astro.props;
+
+const customAvatarUrl = values.avatar_path
+  ? readerAvatarPublicUrl(values.avatar_path)
+  : null;
+const activeAvatar = values.avatar || 'male';
+---
+
+<section class="reader-panel reader-workspace onboarding-panel shell">
+  <p class="overline">Willkommen im Fanblog</p>
+  <PageHeading>Dein Profil einrichten</PageHeading>
+  <p>In drei kurzen Schritten ist dein Leserkonto startklar.</p>
+  <div class="reader-workspace-card onboarding-card">
+    <nav
+      class="onboarding-progress"
+      aria-label="Fortschritt der Profileinrichtung"
+    >
+      <ol>
+        <li data-onboarding-marker aria-current="step">
+          <span class="onboarding-number" aria-hidden="true">1</span><span
+            >Username</span
+          >
+        </li>
+        <li data-onboarding-marker>
+          <span class="onboarding-number" aria-hidden="true">2</span><span
+            >Über dich</span
+          >
+        </li>
+        <li data-onboarding-marker>
+          <span class="onboarding-number" aria-hidden="true">3</span><span
+            >Abschluss</span
+          >
+        </li>
+      </ol>
+    </nav>
+    <p
+      class="onboarding-step-caption"
+      aria-live="polite"
+      data-onboarding-status
+    >
+      Schritt 1 von 3: Username
+    </p>
+    {
+      error && (
+        <p role="alert" data-notification>
+          {error}
+        </p>
+      )
+    }
+    <form
+      method="post"
+      action={`/profil/einrichten?weiter=${encodeURIComponent(destination)}`}
+      class="reader-form"
+      data-onboarding-form
+      novalidate
+    >
+      <p class="required-fields-note">
+        Mit * gekennzeichnete Felder sind Pflichtfelder.
+      </p>
+      <p
+        class="onboarding-validation-notice"
+        data-onboarding-validation
+        data-notification
+        role="alert"
+        hidden
+      >
+      </p>
+      <fieldset data-onboarding-step="1">
+        <legend>Dein öffentlicher Username</legend>
+        <p>So erscheinst du an deinen Kommentaren.</p>
+        <label>
+          <span id="username-label"
+            >Username<span class="required-marker" aria-hidden="true"
+            ></span></span
+          >
+          <span class="onboarding-username-control">
+            <span aria-hidden="true">@</span>
+            <input
+              name="username"
+              aria-labelledby="username-label"
+              aria-describedby="username-help"
+              autocomplete="username"
+              value={values.username}
+              required
+              pattern="[a-zA-Z0-9_]{3,30}"
+              minlength="3"
+              maxlength="30"
+            />
+          </span>
+          <small id="username-help">
+            3–30 Buchstaben, Zahlen oder Unterstriche.
+          </small>
+        </label>
+        <p
+          class="username-feedback"
+          data-username-feedback
+          role="status"
+          hidden
+        >
+        </p>
+      </fieldset>
+
+      <fieldset data-onboarding-step="2" hidden>
+        <legend>Ein bisschen über dich</legend>
+        <p class="reader-workspace-note">
+          <Icon name="lock" />
+          <span>Name und Geburtsdatum sind nicht öffentlich sichtbar.</span>
+        </p>
+        <label>
+          <span
+            >Name<span class="required-marker" aria-hidden="true"></span></span
+          >
+          <input
+            name="full_name"
+            autocomplete="name"
+            value={values.full_name}
+            required
+            minlength="2"
+            maxlength="120"
+          />
+        </label>
+        <label>
+          <span
+            >Geburtsdatum<span class="required-marker" aria-hidden="true"
+            ></span></span
+          >
+          <input
+            type="date"
+            name="birth_date"
+            autocomplete="bday"
+            value={values.birth_date}
+            required
+            min="1900-01-01"
+            max={new Date().toISOString().slice(0, 10)}
+          />
+        </label>
+        <label>
+          <span id="gender-label"
+            >Geschlecht<span class="required-marker" aria-hidden="true"
+            ></span></span
+          >
+          <select
+            name="gender"
+            autocomplete="sex"
+            aria-labelledby="gender-label"
+            required
+          >
+            <option value="" selected={!values.gender}>Bitte wählen</option>
+            {
+              readerGenders.map((option) => (
+                <option
+                  value={option.value}
+                  selected={values.gender === option.value}
+                >
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <div class="onboarding-avatar">
+          <span class="onboarding-avatar__figure" data-avatar-figure>
+            {
+              readerGenders.map((option) => (
+                <ReaderAvatar
+                  variant={option.avatar}
+                  hidden={option.avatar !== activeAvatar}
+                />
+              ))
+            }
+            {
+              customAvatarUrl && (
+                <img
+                  class="reader-avatar reader-avatar--image"
+                  data-avatar-image
+                  data-decorative
+                  src={customAvatarUrl}
+                  alt=""
+                  width="72"
+                  height="72"
+                  decoding="async"
+                />
+              )
+            }
+          </span>
+          <div class="onboarding-avatar__control">
+            <ProfileAvatarUpload
+              hasCustomAvatar={Boolean(customAvatarUrl)}
+              inputId="onboarding-profilbild-datei"
+            />
+          </div>
+        </div>
+        <input
+          type="hidden"
+          name="avatar_path"
+          value={values.avatar_path}
+          data-avatar-path
+        />
+      </fieldset>
+
+      <fieldset data-onboarding-step="3" hidden>
+        <legend>Profil abschließen</legend>
+        {
+          emailConfirmed ? (
+            <p class="onboarding-email-status" role="status">
+              <span class="onboarding-email-status__icon" aria-hidden="true">
+                ✓
+              </span>
+              <span>
+                E-Mail-Adresse bestätigt: <strong>{email}</strong>
+              </span>
+            </p>
+          ) : (
+            <p class="onboarding-email-warning" role="alert">
+              Deine E-Mail-Adresse ist noch nicht bestätigt. Öffne zuerst den
+              Bestätigungslink aus deiner E-Mail und melde dich danach erneut
+              an.
+            </p>
+          )
+        }
+        <label class="reader-checkbox">
+          <input type="checkbox" name="privacy_acknowledged" required />
+          <span>
+            Ich habe die <a href="/datenschutz">Datenschutzhinweise</a> gelesen.
+            <span class="required-marker" aria-hidden="true"></span></span
+          >
+        </label>
+      </fieldset>
+
+      <div class="onboarding-actions">
+        <button type="button" data-onboarding-previous hidden
+          ><Icon name="arrow-left" /> Zurück</button
+        >
+        <button type="button" data-onboarding-next
+          >Weiter <Icon name="arrow-right" /></button
+        >
+        <button
+          type="submit"
+          data-onboarding-submit
+          hidden
+          disabled={!emailConfirmed}
+        >
+          Profil abschließen
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+<script>
+  import {
+    minimumAgeError,
+    readerGenders,
+    underMinimumAge,
+  } from '../lib/reader';
+  import { wireAvatarUpload } from '../scripts/profile-avatar';
+  import { wireUsernameLiveCheck } from '../scripts/username-live-check';
+
+  const form = document.querySelector<HTMLFormElement>(
+    '[data-onboarding-form]',
+  );
+  const panels = Array.from(
+    document.querySelectorAll<HTMLFieldSetElement>('[data-onboarding-step]'),
+  );
+  const markers = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-onboarding-marker]'),
+  );
+  const previous = document.querySelector<HTMLButtonElement>(
+    '[data-onboarding-previous]',
+  );
+  const next = document.querySelector<HTMLButtonElement>(
+    '[data-onboarding-next]',
+  );
+  const submit = document.querySelector<HTMLButtonElement>(
+    '[data-onboarding-submit]',
+  );
+  const status = document.querySelector<HTMLElement>(
+    '[data-onboarding-status]',
+  );
+  const validationNotice = document.querySelector<HTMLElement>(
+    '[data-onboarding-validation]',
+  );
+  const names = ['Username', 'Über dich', 'Abschluss'];
+  let current = 0;
+  let invalidField: HTMLInputElement | null = null;
+
+  // Mindestalter (siehe AGB): Unter 13 Jahren wird das Profil nicht
+  // abgeschlossen – die Meldung erscheint als Toast (data-notification).
+  const today = new Date().toISOString().slice(0, 10);
+  const birthDateInput = form?.querySelector<HTMLInputElement>(
+    'input[name="birth_date"]',
+  );
+  const underAge = () =>
+    birthDateInput?.value
+      ? underMinimumAge(birthDateInput.value, today)
+      : false;
+
+  // Live-Feedback: reservierte oder vergebene Namen blockieren den Abschluss,
+  // solange bis wieder ein freier Name dasteht.
+  const usernameInput = form?.querySelector<HTMLInputElement>(
+    'input[name="username"]',
+  );
+  const usernameFeedback = form?.querySelector<HTMLElement>(
+    '[data-username-feedback]',
+  );
+  const usernameCheck =
+    usernameInput && usernameFeedback
+      ? wireUsernameLiveCheck(
+          usernameInput,
+          usernameFeedback,
+          submit,
+          // Ergebnis trifft erst ein, nachdem schon weitergeklickt wurde:
+          // zurück zum Username-Schritt, damit die Meldung sichtbar ist.
+          () => {
+            if (current > 0) showStep(0);
+          },
+        )
+      : null;
+
+  // Profilbild-Upload in Schritt 2: Der Storage-Pfad aus dem Upload läuft
+  // über das Hidden-Feld mit dem Formular mit und wird erst beim Abschluss
+  // des Profils gespeichert. „Entfernen“ leert das Feld wieder.
+  const avatarPath =
+    form?.querySelector<HTMLInputElement>('[data-avatar-path]');
+  if (form) {
+    wireAvatarUpload(form, {
+      onUploaded: (path) => {
+        if (avatarPath) avatarPath.value = path ?? '';
+      },
+    });
+  }
+
+  // Ohne eigenes Profilbild folgt das Icon der Geschlecht-Auswahl; alle
+  // Varianten sind vorgerendert, nur die passende ist sichtbar.
+  const genderSelect = form?.querySelector<HTMLSelectElement>(
+    'select[name="gender"]',
+  );
+  const avatarVariants = Array.from(
+    document.querySelectorAll<SVGElement>(
+      '[data-avatar-figure] [data-avatar-variant]',
+    ),
+  );
+  const showAvatarVariant = (avatar: string) => {
+    for (const variant of avatarVariants)
+      variant.toggleAttribute(
+        'hidden',
+        variant.dataset.avatarVariant !== avatar,
+      );
+  };
+  genderSelect?.addEventListener('change', () => {
+    const option = readerGenders.find(
+      (entry) => entry.value === genderSelect.value,
+    );
+    showAvatarVariant(option?.avatar ?? 'male');
+  });
+
+  function clearValidationNotice() {
+    if (validationNotice) validationNotice.hidden = true;
+    invalidField?.removeAttribute('aria-invalid');
+    invalidField = null;
+  }
+
+  function showValidationNotice(field: HTMLInputElement, message?: string) {
+    if (!validationNotice) return;
+    clearValidationNotice();
+    invalidField = field;
+    field.setAttribute('aria-invalid', 'true');
+    const messages: Record<string, string> = {
+      username:
+        'Bitte gib einen Username mit 3–30 Buchstaben, Zahlen oder Unterstrichen ein.',
+      full_name: 'Bitte gib deinen Namen ein.',
+      birth_date: 'Bitte gib ein gültiges Geburtsdatum ein.',
+      gender: 'Bitte wähle M, W oder D für dein Geschlecht.',
+      privacy_acknowledged:
+        'Bitte klicken Sie das Kästchen an, um fortzufahren.',
+    };
+    validationNotice.textContent =
+      message ?? messages[field.name] ?? 'Bitte prüfe deine Eingabe.';
+    validationNotice.hidden = false;
+    field.focus();
+  }
+
+  function firstInvalidField(step: number) {
+    return panels[step]?.querySelector<HTMLInputElement>(':invalid');
+  }
+
+  function showStep(step: number) {
+    current = Math.max(0, Math.min(panels.length - 1, step));
+    panels.forEach((panel, index) => (panel.hidden = index !== current));
+    markers.forEach((marker, index) => {
+      if (index === current) marker.setAttribute('aria-current', 'step');
+      else marker.removeAttribute('aria-current');
+      marker.classList.toggle('is-complete', index < current);
+      const number = marker.querySelector('.onboarding-number');
+      if (number)
+        number.textContent = index < current ? '✓' : String(index + 1);
+    });
+    if (previous) previous.hidden = current === 0;
+    if (next) next.hidden = current === panels.length - 1;
+    if (submit) submit.hidden = current !== panels.length - 1;
+    if (status)
+      status.textContent = `Schritt ${current + 1} von ${panels.length}: ${names[current]}`;
+    panels[current]?.querySelector<HTMLElement>('input')?.focus();
+  }
+
+  next?.addEventListener('click', () => {
+    // Reservierter oder vergebener Name: kein Schrittwechsel – die Meldung
+    // steht bereits am Username-Feld.
+    if (current === 0 && usernameCheck?.blocked) {
+      usernameInput?.focus();
+      return;
+    }
+    const invalid = firstInvalidField(current);
+    if (invalid) return showValidationNotice(invalid);
+    if (current === 1 && underAge() && birthDateInput)
+      return showValidationNotice(birthDateInput, minimumAgeError);
+    clearValidationNotice();
+    showStep(current + 1);
+  });
+  previous?.addEventListener('click', () => {
+    clearValidationNotice();
+    showStep(current - 1);
+  });
+  form?.addEventListener('input', () => {
+    if (invalidField?.checkValidity()) clearValidationNotice();
+  });
+  form?.addEventListener('change', () => {
+    if (invalidField?.checkValidity()) clearValidationNotice();
+  });
+  form?.addEventListener('submit', (event) => {
+    for (let step = 0; step < panels.length; step += 1) {
+      if (step === 1 && underAge() && birthDateInput) {
+        event.preventDefault();
+        showStep(step);
+        showValidationNotice(birthDateInput, minimumAgeError);
+        return;
+      }
+      const invalid = firstInvalidField(step);
+      if (!invalid) continue;
+      event.preventDefault();
+      showStep(step);
+      showValidationNotice(invalid);
+      return;
+    }
+    clearValidationNotice();
+    submit?.setAttribute('aria-busy', 'true');
+  });
+</script>

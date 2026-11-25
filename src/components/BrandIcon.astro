@@ -1,0 +1,25 @@
+---
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+const assetBase = '/logo';
+---
+
+<span class:list={['brand-icon', className]} aria-hidden="true">
+  <img
+    class="brand-icon-light"
+    src={`${assetBase}/logo-icon.svg`}
+    alt=""
+    width="160"
+    height="160"
+  />
+  <img
+    class="brand-icon-dark"
+    src={`${assetBase}/logo-icon-dark.svg`}
+    alt=""
+    width="160"
+    height="160"
+  />
+</span>

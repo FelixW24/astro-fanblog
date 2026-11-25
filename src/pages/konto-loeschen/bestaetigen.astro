@@ -1,0 +1,177 @@
+---
+import { parseCookieHeader } from '@supabase/ssr';
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  accountDeletionUserId,
+  confirmAccountDeletion,
+  type AccountDeletionConfirmation,
+} from '../../lib/account-deletion';
+import { isSameOrigin } from '../../lib/admin';
+import {
+  clearCsrfToken,
+  generateCsrfToken,
+  verifyCsrfToken,
+} from '../../lib/csrf';
+import { createAdminAuthClient } from '../../lib/supabase';
+
+// Bestätigung der Kontolöschung: Der Link aus der Mail zeigt diese Seite nur
+// an, gelöscht wird erst mit dem Absenden des Formulars. Mailscanner und
+// Vorschaufunktionen rufen Links automatisch auf und dürfen eine endgültige
+// Löschung nicht auslösen. Zusätzlich schützt ein CSRF-Token (Synchronizer-
+// Token-Pattern) das Formular.
+const tokenFromQuery = Astro.url.searchParams.get('token') ?? '';
+let state: 'confirm' | 'invalid' | 'missing' | 'failed' | 'forbidden' =
+  'confirm';
+let csrfToken = '';
+let confirmedEmail: string | undefined;
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    state = 'forbidden';
+  } else {
+    const form = await Astro.request.formData().catch(() => null);
+    const token = String(form?.get('token') ?? '');
+    const csrf = String(form?.get('csrf_token') ?? '');
+    if (!Astro.session || !verifyCsrfToken(Astro.session, csrf)) {
+      Astro.response.status = 403;
+      state = 'forbidden';
+    } else {
+      let result: AccountDeletionConfirmation;
+      try {
+        const userId = accountDeletionUserId(token);
+        if (userId) {
+          const { data } = await createAdminAuthClient()
+            .auth.admin.getUserById(userId);
+          confirmedEmail = data?.user?.email ?? undefined;
+        }
+        result = await confirmAccountDeletion(
+          token,
+          createAdminAuthClient(),
+          {
+            ipAddress: Astro.clientAddress,
+            actorEmail: confirmedEmail,
+          },
+        );
+      } catch {
+        // Fehlende Serverkonfiguration darf keine 500-Seite erzeugen.
+        console.error('auth.account_deletion_confirm_failed');
+        result = 'failed';
+      }
+      if (result === 'deleted') {
+        // CSRF-Token nach erfolgreicher Aktion verwerfen (One-Time-Token).
+        clearCsrfToken(Astro.session);
+        // Der bestätigende Browser gehört in der Regel zum gelöschten Konto:
+        // Auth-Cookies entfernen, damit keine tote Sitzung zurückbleibt.
+        for (const { name } of parseCookieHeader(
+          Astro.request.headers.get('cookie') ?? '',
+        )) {
+          if (/^sb-.*-auth-token(?:\.\d+)?$/.test(name))
+            Astro.cookies.delete(name, { path: '/' });
+        }
+        Astro.session?.destroy();
+        return Astro.redirect('/anmelden?konto=geloescht');
+      }
+      state = result === 'invalid' ? 'invalid' : result;
+    }
+  }
+} else {
+  // Vor dem Absenden prüfen, ob das Konto überhaupt noch existiert: Ein
+  // bereits gelöschtes Konto oder ein abgelaufener Link soll keinen
+  // Lösch-Button anbieten.
+  const userId = accountDeletionUserId(tokenFromQuery);
+  if (!userId) state = 'invalid';
+  else {
+    try {
+      const { data, error } =
+        await createAdminAuthClient().auth.admin.getUserById(userId);
+      if (error) state = error.status === 404 ? 'missing' : 'failed';
+      else if (!data?.user) state = 'missing';
+      else confirmedEmail = data.user.email ?? undefined;
+    } catch {
+      console.error('auth.account_deletion_lookup_failed');
+      state = 'failed';
+    }
+  }
+  // CSRF-Token für das Formular generieren (nur wenn die Seite angezeigt wird).
+  if (state === 'confirm' && Astro.session) {
+    csrfToken = generateCsrfToken(Astro.session);
+  }
+}
+---
+
+<BaseLayout title="Kontolöschung bestätigen | Astro Fanblog">
+  <section
+    class="not-found shell"
+    data-strip-token={state === 'confirm' ? undefined : ''}
+  >
+    {
+      state === 'confirm' ? (
+        <>
+          <PageHeading>Kontolöschung bestätigen</PageHeading>
+          <p>
+            Du hast die Löschung deines Kontos beantragt. Mit einem Klick auf
+            „Konto endgültig löschen“ werden deine Konto- und Profildaten
+            gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+          <p>
+            Bereits veröffentlichte Kommentare bleiben ohne Zuordnung zu deinem
+            Konto als „Gelöschter Nutzer“ erhalten.
+          </p>
+          <p>
+            Du wirst auf allen Geräten abgemeldet. Melde dich nach der Löschung
+            auf jedem Gerät, auf dem du angemeldet warst, neu an — die alten
+            Sitzungen sind dann ungültig.
+          </p>
+          <form method="post" action={Astro.url.pathname}>
+            <input type="hidden" name="token" value={tokenFromQuery} />
+            <input type="hidden" name="csrf_token" value={csrfToken} />
+            <button type="submit" class="button">
+              Konto endgültig löschen
+            </button>
+          </form>
+          <p>
+            <a href="/profil">Abbrechen und zurück zum Profil</a>
+          </p>
+        </>
+      ) : (
+        <>
+          <PageHeading>Löschung nicht möglich</PageHeading>
+          <p>
+            {state === 'invalid'
+              ? 'Dieser Bestätigungslink ist ungültig oder abgelaufen.'
+              : state === 'missing'
+                ? 'Dieses Konto ist bereits gelöscht.'
+                : state === 'forbidden'
+                  ? 'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.'
+                  : 'Beim Löschen ist ein Fehler aufgetreten. Bitte versuche es später erneut.'}
+          </p>
+          {state === 'invalid' && (
+            <p>
+              Du kannst die Löschung jederzeit erneut in deinem Profil
+              beantragen. Die Bestätigungslinks sind 24 Stunden gültig.
+            </p>
+          )}
+          {state === 'failed' && (
+            <p>
+              Dein Konto wurde nicht gelöscht. Bitte versuche es erneut oder
+              melde dich erneut im Profil an.
+            </p>
+          )}
+          <a class="button" href="/">
+            Zur Startseite
+          </a>
+        </>
+      )
+    }
+  </section>
+</BaseLayout>
+
+<script>
+  // Nach dem Absenden ist der Token verbraucht; er bleibt nicht in der
+  // Adresszeile, damit der Link nicht versehentlich geteilt wird.
+  if (document.querySelector('[data-strip-token]')) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+</script>

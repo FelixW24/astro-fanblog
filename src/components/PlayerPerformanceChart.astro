@@ -1,0 +1,33 @@
+---
+import PlayerBarChart from './PlayerBarChart.astro';
+import PlayerRadarChart from './PlayerRadarChart.astro';
+import type { RadarMetric } from '../lib/player';
+
+interface Props {
+  title: string;
+  metrics: RadarMetric[];
+  chartType: string;
+  unit?: string;
+}
+
+const { title, metrics, chartType, unit = '' } = Astro.props;
+---
+
+<figure class="player-performance">
+  <div role="group" aria-label={title}>
+    {
+      chartType === 'bar' ? (
+        <PlayerBarChart title={title} metrics={metrics} unit={unit} />
+      ) : (
+        <PlayerRadarChart title={title} metrics={metrics} unit={unit} />
+      )
+    }
+  </div>
+</figure>
+
+<style>
+  .player-performance {
+    margin: 0;
+    min-width: 0;
+  }
+</style>

@@ -1,0 +1,23 @@
+---
+import type { InlinePart } from '../lib/article-markup';
+
+interface Props {
+  parts: InlinePart[];
+}
+
+const { parts } = Astro.props;
+---
+
+{
+  parts.map((part) => {
+    if (part.type === 'strong') return <strong>{part.text}</strong>;
+    if (part.type === 'emphasis') return <em>{part.text}</em>;
+    if (part.type === 'link')
+      return (
+        <a href={part.href} rel="noopener noreferrer">
+          {part.text}
+        </a>
+      );
+    return part.text;
+  })
+}

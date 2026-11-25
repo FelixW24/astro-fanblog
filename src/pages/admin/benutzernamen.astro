@@ -1,0 +1,330 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAdmin, isSameOrigin } from '../../lib/admin';
+import { normalizeUsername } from '../../lib/username-check';
+import { logAdminAction } from '../../lib/audit-log';
+
+const { supabase, user } = await getAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let error = '';
+let nameValue = '';
+let patternValue = '';
+let reasonValue = '';
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const action = form.get('action');
+    const reason = String(form.get('reason') ?? '')
+      .trim()
+      .slice(0, 120);
+    if (action === 'add-name') {
+      nameValue = String(form.get('value') ?? '').trim();
+      const value = normalizeUsername(nameValue);
+      reasonValue = reason;
+      if (!/^[a-z0-9_.-]{1,30}$/.test(value))
+        error =
+          'Bitte gib einen Namen mit 1 bis 30 Kleinbuchstaben, Zahlen, Unterstrichen, Punkten oder Bindestrichen ein.';
+      else {
+        const result = await supabase
+          .from('reserved_usernames')
+          .insert({ value, reason: reason || null });
+        if (result.error)
+          error =
+            result.error.code === '23505'
+              ? 'Dieser Name ist bereits reserviert.'
+              : 'Der Eintrag konnte nicht gespeichert werden.';
+        else
+          logAdminAction({
+            action: 'create',
+            entity: 'reserved_username',
+            actorEmail: user.email ?? undefined,
+            detail: `value=${value}`,
+          });
+      }
+    } else if (action === 'remove-name') {
+      const id = String(form.get('id') ?? '');
+      if (!uuidPattern.test(id)) error = 'Ungültiger Eintrag.';
+      else {
+        const result = await supabase
+          .from('reserved_usernames')
+          .delete()
+          .eq('id', id)
+          .select('id');
+        if (result.error) error = 'Der Eintrag konnte nicht entfernt werden.';
+        else if (!result.data?.length)
+          error = 'Dieser Eintrag wurde bereits entfernt.';
+        else
+          logAdminAction({
+            action: 'delete',
+            entity: 'reserved_username',
+            entityId: id,
+            actorEmail: user.email ?? undefined,
+          });
+      }
+    } else if (action === 'add-pattern') {
+      patternValue = String(form.get('pattern') ?? '').trim();
+      reasonValue = reason;
+      if (patternValue.length < 3 || patternValue.length > 200)
+        error = 'Bitte gib ein Pattern mit 3 bis 200 Zeichen ein.';
+      else {
+        const result = await supabase
+          .from('reserved_username_patterns')
+          .insert({ pattern: patternValue, reason: reason || null });
+        if (result.error) {
+          if (result.error.code === '23505')
+            error = 'Dieses Pattern ist bereits vorhanden.';
+          else if (result.error.code === '2201E')
+            error = 'Das Pattern ist kein gültiger regulärer Ausdruck.';
+          else if (result.error.message.includes('blockt'))
+            error = result.error.message;
+          else error = 'Der Eintrag konnte nicht gespeichert werden.';
+        } else
+          logAdminAction({
+            action: 'create',
+            entity: 'reserved_username_pattern',
+            actorEmail: user.email ?? undefined,
+            detail: `pattern=${patternValue}`,
+          });
+      }
+    } else if (action === 'remove-pattern') {
+      const id = String(form.get('id') ?? '');
+      if (!uuidPattern.test(id)) error = 'Ungültiger Eintrag.';
+      else {
+        const result = await supabase
+          .from('reserved_username_patterns')
+          .delete()
+          .eq('id', id)
+          .select('id');
+        if (result.error) error = 'Der Eintrag konnte nicht entfernt werden.';
+        else if (!result.data?.length)
+          error = 'Dieser Eintrag wurde bereits entfernt.';
+        else
+          logAdminAction({
+            action: 'delete',
+            entity: 'reserved_username_pattern',
+            entityId: id,
+            actorEmail: user.email ?? undefined,
+          });
+      }
+    } else error = 'Ungültige Aktion.';
+    if (!error)
+      return Astro.redirect('/admin/benutzernamen?gespeichert=1', 303);
+  }
+}
+
+const names = await supabase
+  .from('reserved_usernames')
+  .select('id, value, reason')
+  .order('value');
+const patterns = await supabase
+  .from('reserved_username_patterns')
+  .select('id, pattern, reason')
+  .order('pattern');
+---
+
+<AdminLayout title="Reservierte Namen" userEmail={user.email ?? 'Redaktion'}>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Community · Benutzernamen</span><h1>
+        Reservierte Namen
+      </h1>
+      <p>
+        Gesperrte Benutzernamen und Pattern verwalten. Der Datenbank-Trigger
+        erzwingt die Sperre serverseitig, auch für direkte API-Aufrufe.
+      </p>
+    </div>
+  </header>
+  {
+    error && (
+      <p role="alert" class="admin-alert admin-alert--error">
+        {error}
+      </p>
+    )
+  }
+  {
+    !error && Astro.url.searchParams.has('gespeichert') && (
+      <p role="status" class="admin-alert">
+        Änderung gespeichert.
+      </p>
+    )
+  }
+  <section class="word-section" aria-labelledby="name-add-title">
+    <h2 id="name-add-title">Namen hinzufügen</h2>
+    <p>
+      Namen werden in Kleinbuchstreibung gespeichert und blocken exakte Treffer
+      bei Registrierung und Namensänderung. Nimm echte Redakteurs-Handles oder
+      auffällige Impersonations-Versuche auf.
+    </p>
+    <form method="post" class="word-form">
+      <label class="field"
+        ><span
+          >Name<span class="required-marker" aria-hidden="true"></span></span
+        >
+        <input name="value" required maxlength="30" value={nameValue} /></label
+      >
+      <label class="field"
+        ><span>Interne Notiz</span>
+        <input name="reason" maxlength="120" value={reasonValue} /></label
+      >
+      <button
+        class="admin-primary-button"
+        type="submit"
+        name="action"
+        value="add-name">Reservieren</button
+      >
+    </form>
+  </section>
+  <section class="word-section" aria-labelledby="name-list-title">
+    <h2 id="name-list-title">
+      Reservierte Namen{!names.error && ` (${names.data?.length ?? 0})`}
+    </h2>
+    {
+      names.error ? (
+        <p role="alert">
+          Die Namensliste konnte nicht geladen werden. Bitte lade die Seite neu.
+        </p>
+      ) : (
+        <ul class="blocked-words">
+          {names.data?.map((entry) => (
+            <li>
+              <bdi>{entry.value}</bdi>
+              {entry.reason && <small>{entry.reason}</small>}
+              <form method="post">
+                <input type="hidden" name="id" value={entry.id} />
+                <button
+                  class="admin-danger-button"
+                  type="submit"
+                  name="action"
+                  value="remove-name"
+                  aria-label={`Namen „${entry.value}“ freigeben`}
+                >
+                  Entfernen
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+  <section class="word-section" aria-labelledby="pattern-add-title">
+    <h2 id="pattern-add-title">Pattern hinzufügen</h2>
+    <p>
+      POSIX-Regex, case-insensitive, gilt als Teilstring. Pattern gegen
+      Derby-Troll-Accounts und Tarn-Varianten wie <code>adm1n</code>. Ein
+      Pattern, das einen legitimen Namen wie <code>normalerfan48</code> trifft, wird
+      automatisch abgewiesen.
+    </p>
+    <form method="post" class="word-form">
+      <label class="field"
+        ><span
+          >Pattern<span class="required-marker" aria-hidden="true"></span></span
+        >
+        <input
+          name="pattern"
+          required
+          minlength="3"
+          maxlength="200"
+          value={patternValue}
+        /></label
+      >
+      <label class="field"
+        ><span>Interne Notiz</span>
+        <input name="reason" maxlength="120" value={reasonValue} /></label
+      >
+      <button
+        class="admin-primary-button"
+        type="submit"
+        name="action"
+        value="add-pattern">Pattern speichern</button
+      >
+    </form>
+  </section>
+  <section class="word-section" aria-labelledby="pattern-list-title">
+    <h2 id="pattern-list-title">
+      Gespeicherte Pattern{
+        !patterns.error && ` (${patterns.data?.length ?? 0})`
+      }
+    </h2>
+    {
+      patterns.error ? (
+        <p role="alert">
+          Die Patternliste konnte nicht geladen werden. Bitte lade die Seite
+          neu.
+        </p>
+      ) : (
+        <ul class="blocked-words">
+          {patterns.data?.map((entry) => (
+            <li>
+              <bdi>
+                <code>{entry.pattern}</code>
+              </bdi>
+              {entry.reason && <small>{entry.reason}</small>}
+              <form method="post">
+                <input type="hidden" name="id" value={entry.id} />
+                <button
+                  class="admin-danger-button"
+                  type="submit"
+                  name="action"
+                  value="remove-pattern"
+                  aria-label={`Pattern „${entry.pattern}“ entfernen`}
+                >
+                  Entfernen
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+</AdminLayout>
+<style>
+  .word-section {
+    margin-block: 32px;
+  }
+  .word-section h2 {
+    margin-bottom: 16px;
+  }
+  .word-section p {
+    margin-block: 12px;
+    max-width: 80ch;
+  }
+  .word-form {
+    display: grid;
+    gap: 12px;
+    max-width: 600px;
+    margin-block: 16px;
+  }
+  .blocked-words {
+    padding: 0;
+    list-style: none;
+  }
+  .blocked-words li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-fog);
+  }
+  .blocked-words bdi {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  .blocked-words small {
+    color: var(--workspace-muted, inherit);
+    overflow-wrap: anywhere;
+  }
+  .blocked-words form {
+    flex-shrink: 0;
+  }
+</style>

@@ -1,0 +1,1072 @@
+---
+import { squadAreaForStatus } from '../../../lib/admin-squad';
+import { savePlayerLoan } from '../../../lib/admin-loan';
+import PlayerInjuryFields from '../../../components/admin/PlayerInjuryFields.astro';
+import PlayerLoanFields from '../../../components/admin/PlayerLoanFields.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import PlayerChartTemplates from '../../../components/PlayerChartTemplates.astro';
+import PlayerBarChart from '../../../components/PlayerBarChart.astro';
+import PlayerRadarChart from '../../../components/PlayerRadarChart.astro';
+import { getAdmin, isSameOrigin } from '../../../lib/admin';
+import { logAdminAction } from '../../../lib/audit-log';
+import {
+  emptyChart,
+  parseChartForm,
+  parseOptionalChartForm,
+  parsePlayerForm,
+  playerPayload,
+  playerToFormValues,
+  type ChartFormValues,
+} from '../../../lib/admin-player';
+import {
+  isRadarMetrics,
+  playerChartTypeLabel,
+  playerChartTypes,
+  playerPositions,
+  preferredFeet,
+  squadStatuses,
+} from '../../../lib/player';
+import {
+  formatHistoryKickoff,
+  formatMinutes,
+  matchGradeTone,
+  mergePlayerMatchHistory,
+  parseMatchRatingEntry,
+  participationLabel,
+  saveChangedMatchRatings,
+  substitutionLabel,
+  type MatchRatingForm,
+} from '../../../lib/admin-player-history';
+import { matchScore } from '../../../lib/matches';
+import PlayerMatchEntryForm from '../../../components/admin/PlayerMatchEntryForm.astro';
+
+const id = Number(Astro.params.id);
+if (!Number.isSafeInteger(id) || id < 1) return Astro.redirect('/404');
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+const { data: player } = await supabase
+  .from('players')
+  .select('*, loans(*)')
+  .eq('id', id)
+  .maybeSingle();
+if (!player) return Astro.redirect('/404');
+
+let values = playerToFormValues(player, player.loans ?? []);
+let chartValues: ChartFormValues = { ...emptyChart, metrics: '' };
+let error: string | null = null;
+let chartError: string | null = null;
+let ratingErrors: string[] = [];
+let ratingsChanged = 0;
+let savedLocally = false;
+// Eingereichte Verlaufseinträge der Sammel-Form (POST), damit die Eingaben
+// bei einem Fehler auf der Seite erhalten bleiben.
+let submittedEntries = new Map<number, MatchRatingForm>();
+
+// Vergangene Spiele und gespeicherte Verlaufseinträge werden vor dem
+// POST-Handling geladen: Sie dienen sowohl der Änderungs-Erkennung beim
+// Speichern als auch der Anzeige.
+const historyNow = new Date();
+const { data: historyMatchData } = await supabase
+  .from('matches')
+  .select('*')
+  .eq('cancelled', false)
+  .lte('kickoff_at', historyNow.toISOString())
+  .order('kickoff_at', { ascending: false })
+  .order('id', { ascending: false })
+  .limit(50);
+const { data: ratingData } = await supabase
+  .from('player_match_ratings')
+  .select('*')
+  .eq('player_id', id);
+const baseHistory = mergePlayerMatchHistory(
+  historyMatchData ?? [],
+  ratingData ?? [],
+  historyNow,
+);
+const matchLabelById = new Map(
+  (historyMatchData ?? []).map((match) => [
+    match.id,
+    `${match.is_home ? 'Heim' : 'Auswärts'} gegen ${match.opponent}`,
+  ]),
+);
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const formData = await Astro.request.formData();
+    const action = String(formData.get('action') ?? 'profile');
+    if (action === 'profile') {
+      const parsed = parsePlayerForm(formData);
+      const parsedChart = parseOptionalChartForm(formData);
+      const chartEditId = Number(formData.get('chart_edit_id'));
+      const editingChart =
+        parsedChart && Number.isSafeInteger(chartEditId) && chartEditId > 0
+          ? chartEditId
+          : null;
+      values = parsed.values;
+      error = parsed.error;
+      if (parsedChart) {
+        chartValues = parsedChart.values;
+        chartError = parsedChart.error;
+      }
+      // Alle Verlaufseinträge der Sammel-Form auslesen, damit sie gerendert
+      // (Fehlerfall) und nur bei Änderung gespeichert werden können.
+      submittedEntries = new Map(
+        baseHistory.map((entry) => [
+          entry.match.id,
+          parseMatchRatingEntry(formData, entry.match.id),
+        ]),
+      );
+      if (!error && !chartError) {
+        const payload = playerPayload(values);
+        const mutation =
+          parsedChart && !editingChart
+            ? await supabase.rpc('create_player_profile_with_availability', {
+                p_player: { ...payload, id },
+                p_chart: {
+                  chart_type: parsedChart.chartType,
+                  title: chartValues.title,
+                  description: chartValues.description || null,
+                  metrics: parsedChart.metrics,
+                  sort_order: parsedChart.sortOrder,
+                },
+              })
+            : await supabase.from('players').update(payload).eq('id', id);
+        if (!mutation.error && parsedChart && editingChart)
+          await supabase
+            .from('player_charts')
+            .update({
+              chart_type: parsedChart.chartType ?? 'radar',
+              title: chartValues.title,
+              description: chartValues.description || null,
+              metrics: parsedChart.metrics,
+              sort_order: parsedChart.sortOrder ?? 1,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', editingChart)
+            .eq('player_id', id);
+        if (mutation.error)
+          error =
+            mutation.error.code === '23505'
+              ? 'Dieser URL-Slug oder dieses Spielerprofil existiert bereits. Prüfe Slug, Name und Geburtsdatum. Deine Eingaben wurden nicht gespeichert.'
+              : 'Speichern fehlgeschlagen. Deine Eingaben wurden nicht gespeichert. Bitte versuche es erneut.';
+        else {
+          savedLocally = true;
+          const loanError = await savePlayerLoan(supabase, id, values);
+          // Zentrale Speicherlogik: Nur Verlaufseinträge, die sich geändert
+          // haben, werden übernommen.
+          const ratingResult = await saveChangedMatchRatings(
+            supabase,
+            id,
+            baseHistory,
+            [...submittedEntries.values()],
+          );
+          ratingsChanged = ratingResult.saved + ratingResult.removed;
+          ratingErrors = ratingResult.errors.map(
+            ({ matchId, error: entryError }) =>
+              `Verlaufseintrag ${matchLabelById.get(matchId) ?? `Spiel #${matchId}`}: ${entryError}`,
+          );
+          if (loanError)
+            error = `Das Spielerprofil wurde gespeichert, aber ${loanError.charAt(0).toLowerCase()}${loanError.slice(1)}`;
+          else if (ratingErrors.length === 0) {
+            logAdminAction({
+              action: 'update',
+              entity: 'player',
+              entityId: id,
+              actorEmail: user.email ?? undefined,
+              detail: `name=${values.name}`,
+            });
+            return Astro.redirect(
+              `/admin/spieler/${id}?saved=updated${parsedChart ? (editingChart ? '&chart=updated' : '&chart=created') : ''}${ratingsChanged ? `&ratings=${ratingsChanged}` : ''}#verlauf`,
+              303,
+            );
+          }
+        }
+      }
+    } else if (action === 'chart-save') {
+      const chartId = Number(formData.get('chart_edit_id'));
+      const editingExisting =
+        Number.isSafeInteger(chartId) && chartId > 0 ? chartId : null;
+      const parsedChart = parseChartForm(formData);
+      chartError = parsedChart.error;
+      chartValues = parsedChart.values;
+      if (!chartError && parsedChart.metrics.length > 0) {
+        const payload = {
+          chart_type: parsedChart.chartType ?? ('radar' as const),
+          title: chartValues.title,
+          description: chartValues.description || null,
+          metrics: parsedChart.metrics,
+          sort_order: parsedChart.sortOrder ?? 1,
+        };
+        const mutation = editingExisting
+          ? await supabase
+              .from('player_charts')
+              .update({ ...payload, updated_at: new Date().toISOString() })
+              .eq('id', editingExisting)
+              .eq('player_id', id)
+          : await supabase
+              .from('player_charts')
+              .insert({ player_id: id, ...payload });
+        if (mutation.error)
+          chartError = `Chart konnte nicht gespeichert werden: ${mutation.error.message}`;
+        else {
+          logAdminAction({
+            action: editingExisting ? 'update' : 'create',
+            entity: 'player_chart',
+            entityId: editingExisting ?? id,
+            actorEmail: user.email ?? undefined,
+            detail: `player_id=${id} title=${chartValues.title}`,
+          });
+          return Astro.redirect(
+            `/admin/spieler/${id}?chart=${editingExisting ? 'updated' : 'created'}`,
+            303,
+          );
+        }
+      }
+    } else if (action === 'chart-delete') {
+      const chartId = Number(formData.get('chart_id'));
+      if (Number.isSafeInteger(chartId) && chartId > 0) {
+        const mutation = await supabase
+          .from('player_charts')
+          .delete()
+          .eq('id', chartId)
+          .eq('player_id', id);
+        if (mutation.error)
+          chartError = `Chart konnte nicht gelöscht werden: ${mutation.error.message}`;
+        else {
+          logAdminAction({
+            action: 'delete',
+            entity: 'player_chart',
+            entityId: chartId,
+            actorEmail: user.email ?? undefined,
+            detail: `player_id=${id}`,
+          });
+          return Astro.redirect(`/admin/spieler/${id}?chart=deleted`, 303);
+        }
+      }
+    }
+  }
+}
+
+const { data: chartData } = await supabase
+  .from('player_charts')
+  .select('*')
+  .eq('player_id', id)
+  .order('sort_order')
+  .order('id');
+const charts = chartData ?? [];
+const { data: templateData, error: templateLoadError } = await supabase
+  .from('player_chart_templates')
+  .select('*')
+  .order('name');
+const templates = (templateData ?? []).map((template) => ({
+  ...template,
+  chart_type:
+    template.chart_type === 'bar' ? ('bar' as const) : ('radar' as const),
+}));
+if (Astro.request.method !== 'POST') {
+  chartValues.sort_order = String(
+    Math.max(0, ...charts.map((chart) => chart.sort_order)) + 1,
+  );
+}
+const chartMessage = Astro.url.searchParams.get('chart');
+const playerCreated = Astro.url.searchParams.get('created') === '1';
+const playerSaved = Astro.url.searchParams.get('saved') === 'updated';
+const ratingsParam = Number(Astro.url.searchParams.get('ratings') ?? '0');
+const ratingsNotice =
+  ratingsParam > 0 || ratingsChanged > 0
+    ? `Spielhistorie: ${ratingsParam > 0 ? ratingsParam : ratingsChanged} ${
+        (ratingsParam > 0 ? ratingsParam : ratingsChanged) === 1
+          ? 'Eintrag'
+          : 'Einträge'
+      } gespeichert.`
+    : null;
+
+// Beim POST die eingereichten Verlaufswerte übernehmen, damit die Eingaben
+// bei einem Fehler auf der Seite erhalten bleiben.
+const history = baseHistory.map((entry) => {
+  const submitted = submittedEntries.get(entry.match.id);
+  if (!submitted) return entry;
+  return {
+    ...entry,
+    rating: submitted.rating,
+    status: submitted.status,
+    minutesPlayed: submitted.minutesPlayed,
+    subMinute: submitted.subMinute,
+    substitutedBy: submitted.substitutedBy,
+    goals: submitted.goals,
+    assists: submitted.assists,
+    note: submitted.note || null,
+  };
+});
+const { data: squadData } = await supabase
+  .from('players')
+  .select('id, name, shirt_number')
+  .order('name')
+  .order('id');
+const squad = squadData ?? [];
+const squadNameById = new Map(squad.map((player) => [player.id, player.name]));
+---
+
+<AdminLayout
+  title={`${player.name} bearbeiten`}
+  userEmail={user.email ?? 'Admin'}
+>
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <a
+        class="admin-back"
+        href={`/admin/spieler?bereich=${squadAreaForStatus(player.squad_status)}`}
+      >
+        ← Spielerprofile
+      </a>
+      <span class="admin-eyebrow">Spieler #{id}</span>
+      <h1>{player.name}</h1>
+      <p>
+        Öffentliche Profilinformationen und Leistungsvisualisierungen pflegen.
+      </p>
+    </div>
+    <a
+      class="admin-secondary-button"
+      href={`/kader/${player.slug}`}
+      target="_blank"
+    >
+      Profil ansehen
+    </a>
+  </header>
+
+  <nav class="editor-subnav" aria-label="Profilbereiche">
+    <div
+      class="editor-tabs"
+      role="tablist"
+      aria-label="Bereich des Spielerprofils"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected="true"
+        data-editor-tab="profil">Profil</button
+      >
+      <button
+        type="button"
+        role="tab"
+        aria-selected="false"
+        data-editor-tab="charts">Charts</button
+      >
+      <button
+        type="button"
+        role="tab"
+        aria-selected="false"
+        data-editor-tab="verlauf">Spielhistorie</button
+      >
+    </div>
+  </nav>
+
+  {
+    playerCreated && (
+      <div
+        class="admin-alert admin-alert--success"
+        role="status"
+        data-notification
+      >
+        {chartMessage === 'none'
+          ? 'Spielerprofil wurde angelegt. Leistungsdaten kannst du später beim Bearbeiten ergänzen.'
+          : 'Spielerprofil und Leistungsdaten wurden angelegt.'}
+      </div>
+    )
+  }
+
+  {
+    (playerSaved || savedLocally) && !error && !chartError && (
+      <div
+        class="admin-alert admin-alert--success"
+        role="status"
+        data-notification
+      >
+        {chartMessage === 'created'
+          ? 'Spielerprofil und Diagramm wurden gespeichert.'
+          : 'Spielerprofil wurde gespeichert.'}{' '}
+        Du kannst es weiter bearbeiten.
+      </div>
+    )
+  }
+
+  <form
+    id="player-profile-form"
+    class="player-editor"
+    method="post"
+    data-player-id={id}
+    data-editor-panel="profil"
+  >
+    {
+      error && (
+        <div
+          class="admin-alert admin-alert--error"
+          role="alert"
+          data-notification
+        >
+          {error}
+        </div>
+      )
+    }
+    {
+      chartError && (
+        <p class="admin-alert admin-alert--error">
+          Das Diagramm enthält einen Fehler. Es wurde nichts gespeichert.{' '}
+          <a href="#chart-input-error">Fehler im Diagramm anzeigen</a>
+        </p>
+      )
+    }
+    <section class="editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Identität</span>
+          <h2>Grunddaten</h2>
+        </div>
+      </div>
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>
+            Name<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input name="name" value={values.name} required maxlength="120" />
+        </label>
+        <label class="field">
+          <span>
+            URL-Slug<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input
+            name="slug"
+            value={values.slug}
+            required
+            pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+          />
+        </label>
+        <label class="field">
+          <span>Rückennummer</span>
+          <input
+            name="shirt_number"
+            value={values.shirt_number}
+            type="number"
+            min="1"
+            max="99"
+          />
+        </label>
+        <label class="field">
+          <span>
+            Position<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <select name="position" required>
+            {
+              playerPositions.map((option) => (
+                <option
+                  value={option.value}
+                  selected={values.position === option.value}
+                >
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>
+            Kaderstatus<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <select id="player-squad-status" name="squad_status" required>
+            {
+              squadStatuses.map((option) => (
+                <option
+                  value={option.value}
+                  selected={values.squad_status === option.value}
+                >
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>Nationalität</span>
+          <input name="nationality" value={values.nationality} maxlength="80" />
+        </label>
+      </div>
+    </section>
+
+    <section class="editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Steckbrief</span>
+          <h2>Persönliche Daten</h2>
+        </div>
+      </div>
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>Geburtsdatum</span>
+          <input
+            name="date_of_birth"
+            value={values.date_of_birth}
+            type="date"
+          />
+        </label>
+        <label class="field">
+          <span>Im Verein seit</span>
+          <input name="joined_on" value={values.joined_on} type="date" />
+        </label>
+        <label class="field">
+          <span>Vertrag bis</span>
+          <input
+            name="contract_until"
+            value={values.contract_until}
+            type="date"
+          />
+        </label>
+        <label class="field">
+          <span>Größe in cm</span>
+          <input
+            name="height_cm"
+            value={values.height_cm}
+            type="number"
+            min="140"
+            max="220"
+          />
+        </label>
+        <label class="field">
+          <span>Starker Fuß</span>
+          <select name="preferred_foot">
+            <option value="">Nicht hinterlegt</option>
+            {
+              preferredFeet.map((foot) => (
+                <option value={foot} selected={values.preferred_foot === foot}>
+                  {foot}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>Marktwert in Euro</span>
+          <input
+            name="market_value_eur"
+            value={values.market_value_eur}
+            type="number"
+            min="0"
+            step="1"
+          />
+        </label>
+      </div>
+      <label class="field">
+        <span>Redaktionstext</span>
+        <textarea
+          name="bio"
+          rows="5"
+          maxlength="2000"
+          placeholder="Kurze Einordnung des Spielers …">{values.bio}</textarea
+        >
+      </label>
+      <label class="field">
+        <span>
+          Profil-Slogan<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <textarea
+          name="profile_slogan"
+          rows="2"
+          maxlength="120"
+          required
+          placeholder="Immer
+für Kölle.">{values.profile_slogan}</textarea
+        >
+        <small>Zeilenumbrüche werden im Profil übernommen.</small>
+      </label>
+    </section>
+
+    <PlayerInjuryFields values={values} />
+
+    <PlayerLoanFields values={values} />
+
+    <section class="editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Medien</span>
+          <h2>Profilbild</h2>
+        </div>
+      </div>
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>Bild-URL</span>
+          <input
+            name="profile_image_url"
+            value={values.profile_image_url}
+            type="url"
+            placeholder="https://…"
+          />
+        </label>
+        <label class="field">
+          <span>
+            Alternativtext
+            <span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input
+            name="profile_image_alt"
+            data-required-with="profile_image_url"
+            required={Boolean(values.profile_image_url)}
+            value={values.profile_image_alt}
+            maxlength="240"
+          />
+        </label>
+      </div>
+    </section>
+  </form>
+
+  <section
+    class="player-chart-admin"
+    aria-labelledby="chart-admin-heading"
+    data-editor-panel="charts"
+    hidden
+  >
+    <div class="section-heading">
+      <div>
+        <span class="section-kicker">Visualisierung</span>
+        <h2 id="chart-admin-heading">Charts</h2>
+        <p>
+          Leistungsdaten als Radar- oder Balkendiagramm erstellen und ihre
+          Reihenfolge im öffentlichen Profil festlegen.
+        </p>
+      </div>
+    </div>
+    {
+      chartMessage === 'created' && !playerSaved && (
+        <div
+          class="admin-alert admin-alert--success"
+          role="status"
+          data-notification
+        >
+          Chart wurde hinzugefügt.
+        </div>
+      )
+    }
+    {
+      chartMessage === 'deleted' && (
+        <div
+          class="admin-alert admin-alert--success"
+          role="status"
+          data-notification
+        >
+          Chart wurde entfernt.
+        </div>
+      )
+    }
+    {
+      chartMessage === 'updated' && (
+        <div
+          class="admin-alert admin-alert--success"
+          role="status"
+          data-notification
+        >
+          Chart wurde gespeichert.
+        </div>
+      )
+    }
+    {
+      chartError && (
+        <div
+          id="chart-input-error"
+          class="admin-alert admin-alert--error"
+          role="alert"
+        >
+          {chartError} Deine Eingaben bleiben erhalten. Profildaten und neues
+          Diagramm wurden nicht gespeichert.
+        </div>
+      )
+    }
+    <div class="player-chart-admin-grid">
+      <div class="editor-panel player-chart-form">
+        <PlayerChartTemplates
+          templates={templates}
+          position={values.position}
+          unavailable={Boolean(templateLoadError)}
+        />
+        <label class="field">
+          <span>
+            Charttitel<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input
+            name="chart_title"
+            form="player-profile-form"
+            value={chartValues.title}
+            maxlength="120"
+            placeholder="Leistungsprofil 2026/27"
+          />
+        </label>
+        <label class="field">
+          <span>Beschreibung</span>
+          <input
+            name="chart_description"
+            form="player-profile-form"
+            value={chartValues.description}
+            maxlength="300"
+            placeholder="Optionaler redaktioneller Hinweis"
+          />
+        </label>
+        <div class="player-chart-form-options">
+          <label class="field">
+            <span>
+              Grafiktyp<span class="required-marker" aria-hidden="true"></span>
+            </span>
+            <select name="chart_type" form="player-profile-form">
+              {
+                playerChartTypes.map((option) => (
+                  <option
+                    value={option.value}
+                    selected={chartValues.chart_type === option.value}
+                  >
+                    {option.label}
+                  </option>
+                ))
+              }
+            </select>
+          </label>
+          <label class="field">
+            <span>
+              Anzeigereihenfolge im Profil
+              <span class="required-marker" aria-hidden="true"></span>
+            </span>
+            <input
+              name="chart_sort_order"
+              form="player-profile-form"
+              value={chartValues.sort_order}
+              type="number"
+              min="1"
+              max="32767"
+              step="1"
+            />
+            <small>1 wird zuerst angezeigt.</small>
+          </label>
+        </div>
+        <label class="field">
+          <span>
+            Werte<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <textarea
+            aria-describedby={chartError
+              ? 'chart-metrics-help chart-input-error'
+              : 'chart-metrics-help'}
+            aria-invalid={Boolean(chartError)}
+            name="chart_metrics"
+            form="player-profile-form"
+            rows="8"
+            placeholder={emptyChart.metrics}>{chartValues.metrics}</textarea
+          >
+          <small id="chart-metrics-help">
+            Eine Kennzahl pro Zeile, zum Beispiel „Tempo: 82“. Erlaubt sind 3–10
+            ganze Zahlen von 0 bis 100, ohne Prozentzeichen (%). Schreibe
+            „Tempo: 82“, nicht „Tempo: 82 %“.
+          </small>
+        </label>
+        <input
+          type="hidden"
+          name="chart_edit_id"
+          form="player-profile-form"
+          value=""
+          data-chart-edit-id
+        />
+        <button
+          class="admin-secondary-button"
+          type="submit"
+          name="action"
+          value="chart-save"
+          form="player-profile-form"
+          data-chart-edit-submit
+        >
+          Chart speichern
+        </button>
+      </div>
+      <div class="player-chart-list">
+        {
+          charts.length ? (
+            charts.map((chart) => {
+              const metrics = isRadarMetrics(chart.metrics)
+                ? chart.metrics
+                : null;
+              return (
+                metrics && (
+                  <article class="player-chart-card">
+                    <>
+                      <header>
+                        <h3>{chart.title}</h3>
+                        {chart.description && <p>{chart.description}</p>}
+                        <small>
+                          {playerChartTypeLabel(chart.chart_type)} · Position{' '}
+                          {chart.sort_order}
+                        </small>
+                      </header>
+                      {chart.chart_type === 'bar' ? (
+                        <PlayerBarChart title={chart.title} metrics={metrics} />
+                      ) : (
+                        <PlayerRadarChart
+                          title={chart.title}
+                          metrics={metrics}
+                        />
+                      )}
+                      <form class="player-chart-controls" method="post">
+                        <input type="hidden" name="chart_id" value={chart.id} />
+                        <div class="player-chart-control-actions">
+                          <button
+                            class="admin-secondary-button"
+                            type="button"
+                            data-chart-edit
+                            data-chart={JSON.stringify({
+                              id: chart.id,
+                              title: chart.title,
+                              description: chart.description ?? '',
+                              chart_type: chart.chart_type,
+                              sort_order: chart.sort_order,
+                              metrics: metrics
+                                .map(
+                                  (metric) =>
+                                    `${metric.label}: ${metric.value}`,
+                                )
+                                .join('\n'),
+                            })}
+                          >
+                            Bearbeiten
+                          </button>
+                          <button
+                            class="admin-danger-button"
+                            type="submit"
+                            name="action"
+                            value="chart-delete"
+                          >
+                            Chart entfernen
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  </article>
+                )
+              );
+            })
+          ) : (
+            <div class="admin-empty editor-panel">
+              <>
+                <strong>Noch keine Charts</strong>
+                <p>Lege links das erste Leistungsprofil an.</p>
+              </>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="player-history"
+    id="verlauf"
+    aria-labelledby="history-heading"
+    data-editor-panel="verlauf"
+    hidden
+  >
+    <div class="section-heading">
+      <div>
+        <span class="section-kicker">History</span>
+        <h2 id="history-heading">Spielhistorie</h2>
+        <p>
+          Bilanz:{' '}
+          <strong>
+            {player.total_goals}
+            {player.total_goals === 1 ? 'Tor' : 'Tore'}
+          </strong>{' '}
+          ·{' '}
+          <strong>
+            {player.total_assists}{' '}
+            {player.total_assists === 1 ? 'Vorlage' : 'Vorlagen'}
+          </strong>{' '}
+          (automatisch aus dem Verlauf berechnet)
+        </p>
+      </div>
+    </div>
+    {
+      ratingsNotice && (
+        <div class="admin-alert admin-alert--success" role="status">
+          {ratingsNotice}
+        </div>
+      )
+    }
+    {
+      ratingErrors.length > 0 && (
+        <div
+          class="admin-alert admin-alert--error"
+          role="alert"
+          data-notification
+        >
+          <p>
+            Einige Verlaufseinträge konnten nicht gespeichert werden. Das
+            Spielerprofil wurde gespeichert; prüfe die markierten Spiele:
+          </p>
+          <ul>
+            {ratingErrors.map((message) => (
+              <li>{message}</li>
+            ))}
+          </ul>
+        </div>
+      )
+    }
+    {
+      history.length ? (
+        <ol class="match-timeline">
+          {history.map((entry) => (
+            <li
+              class:list={[
+                'match-timeline-item',
+                { 'match-timeline-item--rated': entry.rating !== null },
+              ]}
+            >
+              <span class="match-timeline-marker" aria-hidden="true" />
+              <article class="match-timeline-card editor-panel">
+                <header class="match-timeline-head">
+                  <div>
+                    <time datetime={entry.match.kickoff_at ?? undefined}>
+                      {entry.match.kickoff_at
+                        ? formatHistoryKickoff(entry.match.kickoff_at)
+                        : 'Noch nicht terminiert'}
+                    </time>
+                    <strong>
+                      {entry.match.is_home ? 'Heim' : 'Auswärts'} gegen{' '}
+                      {entry.match.opponent}
+                    </strong>
+                    <small>
+                      {entry.match.venue}
+                      {matchScore(entry.match)
+                        ? ` · ${matchScore(entry.match)}`
+                        : ''}
+                    </small>
+                  </div>
+                  {entry.status === 'not_nominated' ? (
+                    <span class="match-grade match-grade--none">
+                      Nicht nominiert
+                    </span>
+                  ) : (
+                    <span
+                      class:list={[
+                        'match-grade',
+                        entry.rating
+                          ? `match-grade--${matchGradeTone(entry.rating)}`
+                          : 'match-grade--none',
+                      ]}
+                    >
+                      {entry.rating
+                        ? `Note ${entry.rating}`
+                        : entry.status === 'played'
+                          ? 'Noch keine Note'
+                          : participationLabel(entry.status)}
+                      {entry.minutesPlayed !== null &&
+                        ` · ${formatMinutes(entry.minutesPlayed)}`}
+                      {entry.subMinute !== null &&
+                        ` · ${substitutionLabel(entry.status, entry.subMinute)}`}
+                      {entry.status === 'subbed_off' &&
+                        entry.substitutedBy !== null &&
+                        squadNameById.get(entry.substitutedBy) &&
+                        ` für ${squadNameById.get(entry.substitutedBy)}`}
+                      {entry.goals > 0 &&
+                        ` · ${entry.goals} ${entry.goals === 1 ? 'Tor' : 'Tore'}`}
+                      {entry.assists > 0 &&
+                        ` · ${entry.assists} ${entry.assists === 1 ? 'Vorlage' : 'Vorlagen'}`}
+                    </span>
+                  )}
+                </header>
+                {entry.note && <p class="match-timeline-note">{entry.note}</p>}
+                <PlayerMatchEntryForm
+                  entry={entry}
+                  squad={squad}
+                  playerId={id}
+                />
+              </article>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div class="admin-empty editor-panel">
+          <>
+            <strong>Noch keine vergangenen Spiele</strong>
+            <p>
+              Sobald ein Spiel vorbei ist, erscheint es hier im Verlauf und du
+              kannst die Note vergeben.
+            </p>
+          </>
+        </div>
+      )
+    }
+  </section>
+
+  <div class="player-editor-actions">
+    <p class="player-editor-actions-note">
+      Speichert das Spielerprofil und alle geänderten Verlaufseinträge auf
+      einmal.
+    </p>
+    <button
+      class="admin-primary-button"
+      type="submit"
+      name="action"
+      value="profile"
+      form="player-profile-form"
+    >
+      Speichern und weiter bearbeiten
+    </button>
+  </div>
+
+  <script>
+    import { wirePlayerChartEdit } from '../../../scripts/player-chart-edit';
+    import { wirePlayerEditorTabs } from '../../../scripts/player-editor-tabs';
+    wirePlayerChartEdit();
+    wirePlayerEditorTabs();
+  </script>
+
+  <script>
+    // Unsichtbarer Autosave: Verlässt ein Feld der Profilsammel-Form mit
+    // geändertem Wert (change-Event), wird der aktuelle Stand im Hintergrund
+    // an den Autosave-Endpunkt geschickt. Es gibt bewusst keine Anzeige, keinen
+    // Redirect und keine Fehlermeldung im UI — Fehler werden ignoriert.
+    const profileForm = document.getElementById('player-profile-form');
+    if (profileForm instanceof HTMLFormElement) {
+      const playerId = profileForm.dataset.playerId;
+      if (playerId) {
+        let timer: number | undefined;
+        let running = false;
+        let again = false;
+        const send = () => {
+          if (running) {
+            again = true;
+            return;
+          }
+          running = true;
+          fetch(`/admin/spieler/${playerId}/autosave`, {
+            method: 'POST',
+            body: new FormData(profileForm),
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          })
+            .catch(() => {})
+            .finally(() => {
+              running = false;
+              if (again) {
+                again = false;
+                schedule();
+              }
+            });
+        };
+        const schedule = () => {
+          window.clearTimeout(timer);
+          timer = window.setTimeout(send, 600);
+        };
+        profileForm.addEventListener('change', schedule);
+      }
+    }
+  </script>
+</AdminLayout>

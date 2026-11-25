@@ -1,0 +1,102 @@
+---
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  newsletterSubscriberId,
+  validNewsletterToken,
+} from '../../lib/newsletter';
+import { createAdminAuthClient } from '../../lib/supabase';
+
+// Ein-Klick-Abmeldung: Der signierte Link aus jeder Newsletter-Mail meldet
+// das Abonnement sofort ab – ohne Anmeldung und ohne weiteres Formular.
+// Der Vorgang ist idempotent: Ein erneuter Aufruf ändert nichts.
+// Abmeldelinks laufen nicht ab, damit auch ältere Mails noch abmelden können.
+const token = Astro.url.searchParams.get('token') ?? '';
+const subscriberId = newsletterSubscriberId(token);
+
+let done = false;
+let email = '';
+let invalidToken = true;
+if (subscriberId && validNewsletterToken(token, subscriberId, 'unsubscribe')) {
+  invalidToken = false;
+  try {
+    const admin = createAdminAuthClient();
+    const { data: subscriber, error: lookupError } = await admin
+      .from('newsletter_subscribers')
+      .select('id, email')
+      .eq('id', subscriberId)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (subscriber) {
+      email = subscriber.email;
+      const { error } = await admin
+        .from('newsletter_subscribers')
+        .update({
+          status: 'unsubscribed',
+          unsubscribed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', subscriberId);
+      if (error) throw error;
+      done = true;
+    }
+  } catch (error) {
+    console.error('newsletter.unsubscribe_failed', error);
+  }
+}
+---
+
+<BaseLayout title="Newsletter abbestellt | Astro Fanblog">
+  <section class="not-found shell" data-strip-token={done ? '' : undefined}>
+    {
+      done ? (
+        <>
+          <PageHeading>Newsletter abbestellt</PageHeading>
+          <p>
+            Erledigt – ein Klick hat genügt. Du erhältst ab sofort keine
+            Newsletter-E-Mails mehr{email ? ` an ${email}` : ''}.
+          </p>
+          <p>
+            Die Abmeldung wurde sofort wirksam und gespeichert. Wenn du es dir
+            anders überlegst, kannst du dich jederzeit über das
+            Willkommens-Modal auf der Startseite erneut anmelden (dann mit
+            erneuter Bestätigung per E-Mail).
+          </p>
+          <p>
+            <a href="/datenschutz">Informationen zur Datenverarbeitung</a>
+          </p>
+          <a class="button" href="/">
+            Zur Startseite
+          </a>
+        </>
+      ) : (
+        <>
+          <PageHeading>Abmeldung nicht möglich</PageHeading>
+          <p>
+            {invalidToken
+              ? 'Dieser Abmeldelink ist ungültig. Jede Newsletter-E-Mail enthält einen aktuellen Abmeldelink.'
+              : 'Beim Abmelden ist ein Fehler aufgetreten. Bitte versuche es später erneut.'}
+          </p>
+          <p>
+            Du kannst dich jederzeit über das Willkommens-Modal auf der
+            Startseite erneut anmelden – oder uns über{' '}
+            <a href="mailto:kontakt@example.com">kontakt@example.com</a>{' '}
+            kontaktieren, zum Beispiel um deine Daten vollständig löschen zu
+            lassen.
+          </p>
+          <a class="button" href="/">
+            Zur Startseite
+          </a>
+        </>
+      )
+    }
+  </section>
+</BaseLayout>
+
+<script>
+  // Nach erfolgreicher Abmeldung den Token aus der URL entfernen, damit
+  // der einmalige Link nicht über die Adressleiste geteilt werden kann.
+  if (document.querySelector('[data-strip-token]')) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+</script>

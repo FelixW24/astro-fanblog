@@ -1,0 +1,180 @@
+---
+import Icon from './Icon.astro';
+import type { PublicMatchHistoryEntry } from '../lib/player-match-history';
+import {
+  formatMatchClock,
+  formatMatchDate,
+  matchOutcome,
+  matchScore,
+  matchTeams,
+} from '../lib/matches';
+import {
+  formatMinutes,
+  matchGradeTone,
+  participationLabel,
+  substitutionLabel,
+} from '../lib/admin-player-history';
+
+interface Props {
+  entries: PublicMatchHistoryEntry[];
+}
+
+const { entries } = Astro.props;
+---
+
+<aside class="player-history-panel" aria-label="Spielhistorie des Spielers">
+  <header class="player-history-panel__head">
+    <h3>Spielhistorie</h3>
+  </header>
+  <div class="player-history-panel__scroll">
+    <ol class="player-history-timeline">
+      {
+        entries.map((entry) => {
+          const teams = matchTeams(entry.match);
+          const score = matchScore(entry.match);
+          const outcome = matchOutcome(entry.match);
+          // null = "Noch nicht terminiert"; zählt als kommendes Spiel.
+          const upcoming = entry.match.kickoff_at
+            ? new Date(entry.match.kickoff_at) > new Date()
+            : true;
+          return (
+            <li
+              class:list={[
+                'player-history-item',
+                upcoming
+                  ? 'player-history-item--upcoming'
+                  : outcome && `player-history-item--${outcome}`,
+                entry.rating && 'player-history-item--rated',
+              ]}
+            >
+              <span class="player-history-marker" aria-hidden="true" />
+              <a
+                class="player-history-card"
+                href={`/spielplan/${entry.match.id}`}
+                aria-label={`Spieldetails: ${teams[0].name} gegen ${teams[1].name}, ${score ?? 'noch nicht gespielt'}`}
+              >
+                <div class="player-history-card__row">
+                  <p class="player-history-teams">
+                    <span class="player-history-team player-history-team--home">
+                      {teams[0].name}
+                    </span>
+                    <strong
+                      class:list={[
+                        'player-history-score',
+                        upcoming
+                          ? 'player-history-score--upcoming'
+                          : outcome && `player-history-score--${outcome}`,
+                      ]}
+                    >
+                      {score ?? '–'}
+                    </strong>
+                    <span class="player-history-team player-history-team--away">
+                      {teams[1].name}
+                    </span>
+                  </p>
+                  <div class="player-history-meta">
+                    <span class="player-history-meta__venue">
+                      {entry.match.venue}
+                    </span>
+                    <span
+                      class="player-history-meta__divider"
+                      aria-hidden="true"
+                    />
+                    <span class="player-history-meta__date">
+                      <Icon name="calendar" size={13} />
+                      <time datetime={entry.match.kickoff_at ?? undefined}>
+                        {entry.match.kickoff_at
+                          ? formatMatchDate(entry.match.kickoff_at)
+                          : 'Noch nicht terminiert'}
+                      </time>
+                    </span>
+                    {entry.match.kickoff_at && (
+                      <>
+                        <span
+                          class="player-history-meta__divider"
+                          aria-hidden="true"
+                        />
+                        <span class="player-history-meta__time">
+                          <Icon name="clock" size={13} />
+                          {formatMatchClock(entry.match.kickoff_at)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {entry.recorded && (
+                  <p class="player-history-facts">
+                    {entry.status === 'not_nominated' ? (
+                      <span class="player-history-fact player-history-fact--none">
+                        <Icon name="eye-off" size={13} />
+                        Nicht nominiert
+                      </span>
+                    ) : (
+                      <>
+                        <span
+                          class:list={[
+                            'player-history-fact',
+                            entry.rating
+                              ? `player-history-fact--${matchGradeTone(entry.rating)}`
+                              : 'player-history-fact--none',
+                          ]}
+                        >
+                          <Icon name="star" size={13} />
+                          {entry.rating
+                            ? `Note ${entry.rating}`
+                            : participationLabel(entry.status)}
+                        </span>
+                        {entry.minutesPlayed !== null && (
+                          <span class="player-history-fact">
+                            <Icon name="hourglass" size={13} />
+                            {formatMinutes(entry.minutesPlayed)}
+                          </span>
+                        )}
+                        {entry.subMinute !== null && (
+                          <span
+                            class:list={[
+                              'player-history-fact',
+                              entry.status === 'subbed_off'
+                                ? 'player-history-fact--sub-off'
+                                : 'player-history-fact--sub-in',
+                            ]}
+                            aria-label={`${substitutionLabel(entry.status, entry.subMinute)}${entry.status === 'subbed_off' && entry.substitutedByName ? ` für ${entry.substitutedByName}` : ''}`}
+                            title={`${substitutionLabel(entry.status, entry.subMinute)}${entry.status === 'subbed_off' && entry.substitutedByName ? ` für ${entry.substitutedByName}` : ''}`}
+                          >
+                            <Icon name="transfer" size={13} />
+                            {entry.subMinute}.
+                            {entry.status === 'subbed_off' &&
+                              entry.substitutedByName &&
+                              ` für ${entry.substitutedByName}`}
+                          </span>
+                        )}
+                        {(entry.goals > 0 || entry.assists > 0) && (
+                          <span
+                            class="player-history-fact player-history-fact--score"
+                            aria-label={`${entry.goals} ${entry.goals === 1 ? 'Tor' : 'Tore'}${entry.assists > 0 ? `, ${entry.assists} ${entry.assists === 1 ? 'Vorlage' : 'Vorlagen'}` : ''}`}
+                          >
+                            <Icon name="ball" size={13} />
+                            {entry.goals > 0 &&
+                              `${entry.goals} ${entry.goals === 1 ? 'Tor' : 'Tore'}`}
+                            {entry.goals > 0 && entry.assists > 0 && ' · '}
+                            {entry.assists > 0 && (
+                              <>
+                                <Icon name="assist" size={13} />
+                                {`${entry.assists} ${entry.assists === 1 ? 'Vorlage' : 'Vorlagen'}`}
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
+                )}
+                {entry.note && <p class="player-history-note">{entry.note}</p>}
+              </a>
+            </li>
+          );
+        })
+      }
+    </ol>
+  </div>
+</aside>

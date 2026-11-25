@@ -1,0 +1,262 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import Icon from '../../components/Icon.astro';
+import {
+  formatMatchClock,
+  formatMatchDate,
+  matchScore,
+  matchTeams,
+} from '../../lib/matches';
+import {
+  formatMatchStatValue,
+  getMatchDetail,
+  type MatchStatRow,
+} from '../../lib/match-detail';
+import { positionLabel } from '../../lib/player';
+import '../../styles/public/match-detail.css';
+
+const id = Number(Astro.params.id);
+if (!Number.isSafeInteger(id) || id < 1) return Astro.redirect('/404');
+
+let detail = null;
+try {
+  detail = await getMatchDetail(id);
+} catch {
+  Astro.response.status = 503;
+}
+if (!detail && Astro.response.status !== 503) return Astro.redirect('/404');
+
+const match = detail?.match;
+const teams = match ? matchTeams(match) : [];
+const score = match ? matchScore(match) : null;
+const stats = detail?.stats ?? [];
+const lineup = detail?.lineup;
+
+// Balkenbreite im Statistikvergleich: Prozentwerte relativ zu 100,
+// Zähler und xG relativ zum größeren der beiden Werte.
+function barWidth(row: MatchStatRow, side: 'home' | 'away'): number {
+  const value = side === 'home' ? row.home : row.away;
+  if (value === null) return 0;
+  if (row.kind === 'percent') return value;
+  const max = Math.max(row.home ?? 0, row.away ?? 0);
+  return max > 0 ? (value / max) * 100 : 0;
+}
+---
+
+<BaseLayout
+  title={match
+    ? `${teams[0].name} vs. ${teams[1].name} | Spieldetails | Astro Fanblog`
+    : 'Spieldetails | Astro Fanblog'}
+  description={match
+    ? `Spieldetails zu ${teams[0].name} gegen ${teams[1].name}: Aufstellung und Basis-Statistiken.`
+    : 'Spieldetails sind gerade nicht verfügbar.'}
+>
+  <main class="section shell match-detail-page">
+    <a class="match-detail-back" href="/spielplan">← Zurück zum Spielplan</a>
+    {
+      match && detail ? (
+        <>
+          <header class="match-detail-hero">
+            <p class="match-detail-hero__meta">
+              <Icon name="calendar" size={14} />
+              {match.kickoff_at ? (
+                <time datetime={match.kickoff_at}>
+                  {formatMatchDate(match.kickoff_at)}
+                </time>
+              ) : (
+                <span>Noch nicht terminiert</span>
+              )}
+              {match.kickoff_at && (
+                <>
+                  {' · '}
+                  <Icon name="clock" size={14} />
+                  {formatMatchClock(match.kickoff_at)}
+                </>
+              )}
+              {' · '}
+              <Icon name="map-pin" size={14} />
+              {match.venue}
+            </p>
+            <div
+              class="match-detail-hero__teams"
+              aria-label={`${teams[0].name} gegen ${teams[1].name}`}
+            >
+              {[0, 1].map((index) => (
+                <>
+                  {index === 1 && (
+                    <span class="match-detail-hero__versus" aria-hidden="true">
+                      {score ?? 'vs.'}
+                    </span>
+                  )}
+                  <div class="match-detail-hero__team">
+                    <span
+                      class:list={[
+                        'team-crest',
+                        teams[index]?.fc
+                          ? 'team-crest--fc'
+                          : 'team-crest--opponent',
+                      ]}
+                      aria-hidden="true"
+                    >
+                      {teams[index]?.short}
+                    </span>
+                    <span>{teams[index]?.name}</span>
+                  </div>
+                </>
+              ))}
+            </div>
+            {match.matchcenter_url && (
+              <a
+                class="match-detail-hero__center"
+                href={match.matchcenter_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Zum Spielcenter <Icon name="arrow-right" size={14} />
+              </a>
+            )}
+          </header>
+
+          <div class="match-detail-grid">
+            <section
+              class="match-detail-panel match-detail-panel--lineup"
+              aria-labelledby="match-lineup-heading"
+            >
+              <header class="match-detail-panel__head">
+                <h2 id="match-lineup-heading">Aufstellung</h2>
+              </header>
+              {lineup &&
+              (lineup.starters.length > 0 ||
+                lineup.bench.length > 0 ||
+                lineup.substitutions.length > 0) ? (
+                <>
+                  <div class="match-lineup-team">
+                    {lineup.starters.length > 0 && (
+                      <>
+                        <h4>Startelf</h4>
+                        <ul class="match-lineup-list">
+                          {lineup.starters.map((player) => (
+                            <li>
+                              <span class="match-lineup-list__number">
+                                {player.shirtNumber ?? '–'}
+                              </span>
+                              <span class="match-lineup-list__name">
+                                {player.name}
+                              </span>
+                              <span class="match-lineup-list__position">
+                                {positionLabel(player.position)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {lineup.bench.length > 0 && (
+                      <>
+                        <h4>Bank</h4>
+                        <ul class="match-lineup-list">
+                          {lineup.bench.map((player) => (
+                            <li>
+                              <span class="match-lineup-list__number">
+                                {player.shirtNumber ?? '–'}
+                              </span>
+                              <span class="match-lineup-list__name">
+                                {player.name}
+                              </span>
+                              <span class="match-lineup-list__position">
+                                {positionLabel(player.position)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {lineup.substitutions.length > 0 && (
+                      <>
+                        <h4>Ein- & Auswechslungen</h4>
+                        <ul class="match-lineup-list match-lineup-list--subs">
+                          {lineup.substitutions.map((sub) => (
+                            <li>
+                              <span class="match-lineup-list__minute">
+                                {sub.minute}.
+                              </span>
+                              <span class="match-lineup-list__sub">
+                                <Icon name="transfer" size={13} />
+                                {sub.in && (
+                                  <span class="match-lineup-list__sub-in">
+                                    {sub.in.name}
+                                  </span>
+                                )}
+                                {sub.in && sub.out && ' für '}
+                                {sub.out && (
+                                  <span class="match-lineup-list__sub-out">
+                                    {sub.out.name}
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p class="match-lineup-note">
+                  Für dieses Spiel ist noch keine Aufstellung gepflegt.
+                </p>
+              )}
+            </section>
+
+            <section
+              class="match-detail-panel match-detail-panel--stats"
+              aria-labelledby="match-stats-heading"
+            >
+              <header class="match-detail-panel__head">
+                <h2 id="match-stats-heading">Statistik</h2>
+              </header>
+              {stats.length > 0 ? (
+                <>
+                  <ul class="match-stats-list">
+                    {stats.map((row) => (
+                      <li class="match-stat">
+                        <span class="match-stat__value match-stat__value--home">
+                          {formatMatchStatValue(row.home, row.kind)}
+                        </span>
+                        <span class="match-stat__bar" aria-hidden="true">
+                          <span
+                            class="match-stat__bar-fill match-stat__bar-fill--home"
+                            style={`width: ${barWidth(row, 'home')}%;`}
+                          />
+                          <span
+                            class="match-stat__bar-fill match-stat__bar-fill--away"
+                            style={`width: ${barWidth(row, 'away')}%;`}
+                          />
+                        </span>
+                        <span class="match-stat__value match-stat__value--away">
+                          {formatMatchStatValue(row.away, row.kind)}
+                        </span>
+                        <span class="match-stat__label">{row.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p class="match-lineup-note">
+                  Für dieses Spiel sind noch keine Statistiken gepflegt.
+                </p>
+              )}
+            </section>
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          technical
+          title="Spieldetails nicht erreichbar"
+          message="Bitte versuche es später erneut."
+        />
+      )
+    }
+  </main>
+</BaseLayout>

@@ -1,0 +1,22 @@
+# Astro Fanblog
+
+> Open-source blog software for football fan communities — news, match
+> reports, squad, loans, schedule and community features, built with Astro
+> and Supabase. Independent, critical, always from the fans' perspective.
+
+## Pages
+
+- [Home](https://example.com/): Overview of the latest articles.
+- [All articles](https://example.com/beitraege): Archive of all articles.
+- [Squad](https://example.com/kader): The current squad of your club.
+- [Loans](https://example.com/leihspieler): Loaned players with stats.
+- [Schedule](https://example.com/spielplan): Match history as a timeline.
+- [RSS feed](https://example.com/rss.xml): New articles via RSS.
+- [Sitemap](https://example.com/sitemap.xml): All indexable pages.
+
+## Crawler policies
+
+- robots.txt: https://example.com/robots.txt
+- AI crawlers are welcome (Content-Signal: ai=allow); using the content for training is not permitted (ai-input=disallow).
+- API catalog for agents: https://example.com/.well-known/api-catalog
+- Articles support content negotiation: `Accept: text/markdown` returns the article as Markdown.

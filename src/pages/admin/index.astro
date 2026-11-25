@@ -1,0 +1,287 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import CategoryLabel from '../../components/CategoryLabel.astro';
+import AdminDeleteDialog from '../../components/admin/AdminDeleteDialog.astro';
+import { categories, formatDate, type Article } from '../../lib/content';
+import { getAdmin } from '../../lib/admin';
+import Icon from '../../components/Icon.astro';
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+const { data, error } = await supabase
+  .from('articles')
+  .select('*')
+  .order('updated_at', { ascending: false });
+const allArticles: Article[] = data ?? [];
+const selectedCategory = Astro.url.searchParams.get('category') ?? '';
+const selectedStatus = Astro.url.searchParams.get('status') ?? '';
+const search = Astro.url.searchParams.get('q')?.trim().toLowerCase() ?? '';
+const articles = allArticles.filter(
+  (article) =>
+    (!selectedCategory || article.category === selectedCategory) &&
+    (!selectedStatus || article.status === selectedStatus) &&
+    (!search ||
+      article.title.toLowerCase().includes(search) ||
+      article.author.toLowerCase().includes(search)),
+);
+const counts = {
+  all: allArticles.length,
+  published: allArticles.filter((article) => article.status === 'published')
+    .length,
+  draft: allArticles.filter((article) => article.status === 'draft').length,
+  archived: allArticles.filter((article) => article.status === 'archived')
+    .length,
+};
+const message = Astro.url.searchParams.get('saved');
+const savedMessages: Record<string, { title: string; text: string }> = {
+  created: {
+    title: 'Beitrag angelegt',
+    text: 'Der neue Beitrag wurde erfolgreich gespeichert.',
+  },
+  updated: {
+    title: 'Änderungen gespeichert',
+    text: 'Der Beitrag wurde erfolgreich aktualisiert.',
+  },
+  deleted: {
+    title: 'Beitrag gelöscht',
+    text: 'Der Beitrag wurde erfolgreich gelöscht.',
+  },
+};
+const notification = message ? savedMessages[message] : undefined;
+---
+
+<AdminLayout title="Beiträge" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading">
+    <div>
+      <h1>Beiträge</h1>
+    </div>
+    <a class="admin-primary-button" href="/admin/beitraege/neu"
+      ><Icon name="plus" size={16} /> Neuer Beitrag</a
+    >
+  </header>
+
+  {
+    notification && (
+      <div
+        class="admin-toast"
+        role="status"
+        aria-live="polite"
+        data-admin-toast
+        data-notification
+      >
+        <span class="admin-toast__icon" aria-hidden="true">
+          ✓
+        </span>
+        <div>
+          <strong>{notification.title}</strong>
+          <span>{notification.text}</span>
+        </div>
+        <button
+          type="button"
+          aria-label="Benachrichtigung schließen"
+          data-dismiss-toast
+        >
+          ×
+        </button>
+      </div>
+    )
+  }
+  {
+    error && (
+      <div class="admin-alert admin-alert--error">
+        Die Beiträge konnten nicht geladen werden: {error.message}
+      </div>
+    )
+  }
+
+  <div class="admin-stats">
+    <a href="/admin"><span>Gesamt</span><strong>{counts.all}</strong></a>
+    <a href="/admin?status=published"
+      ><span>Veröffentlicht</span><strong>{counts.published}</strong></a
+    >
+    <a href="/admin?status=draft"
+      ><span>Entwürfe</span><strong>{counts.draft}</strong></a
+    >
+    <a href="/admin?status=archived"
+      ><span>Archiviert</span><strong>{counts.archived}</strong></a
+    >
+  </div>
+
+  <form class="admin-filters" method="get">
+    <label
+      ><span class="sr-only">Beiträge durchsuchen</span><input
+        type="search"
+        name="q"
+        value={Astro.url.searchParams.get('q') ?? ''}
+        placeholder="Titel oder Autor suchen …"
+      /></label
+    >
+    <label
+      ><span class="sr-only">Kategorie</span><select name="category"
+        ><option value="">Alle Kategorien</option>{
+          categories.map((category) => (
+            <option
+              value={category.slug}
+              selected={selectedCategory === category.slug}
+            >
+              {category.label}
+            </option>
+          ))
+        }</select
+      ></label
+    >
+    <label
+      ><span class="sr-only">Status</span><select name="status"
+        ><option value="">Alle Status</option><option
+          value="published"
+          selected={selectedStatus === 'published'}>Veröffentlicht</option
+        ><option value="draft" selected={selectedStatus === 'draft'}
+          >Entwurf</option
+        ><option value="archived" selected={selectedStatus === 'archived'}
+          >Archiviert</option
+        ></select
+      ></label
+    >
+    <button type="submit">Filtern</button>
+    {
+      (selectedCategory || selectedStatus || search) && (
+        <a href="/admin">Zurücksetzen</a>
+      )
+    }
+  </form>
+
+  <section class="admin-table-wrap" aria-label="Beitragsliste">
+    {
+      articles.length ? (
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <>
+                <th>Beitrag</th>
+                <th>Kategorie</th>
+                <th>Status</th>
+                <th>Datum</th>
+                <th>
+                  <span class="sr-only">Aktion</span>
+                </th>
+              </>
+            </tr>
+          </thead>
+          <tbody>
+            {articles.map((article) => (
+              <tr>
+                <td>
+                  <strong>{article.title}</strong>
+                  <small>
+                    {article.author} · {article.read_minutes} Min.
+                  </small>
+                </td>
+                <td>
+                  <CategoryLabel category={article.category} />
+                </td>
+                <td>
+                  <span class={`status-pill status-${article.status}`}>
+                    {article.status === 'published'
+                      ? 'Veröffentlicht'
+                      : article.status === 'draft'
+                        ? 'Entwurf'
+                        : 'Archiviert'}
+                  </span>
+                </td>
+                <td>
+                  {formatDate(article.published_at ?? article.updated_at)}
+                </td>
+                <td>
+                  <div class="admin-page-actions">
+                    <a
+                      class="admin-secondary-button admin-icon-action"
+                      href={`/admin/beitraege/${article.id}`}
+                      aria-label={`„${article.title}“ bearbeiten`}
+                    >
+                      <Icon name="edit" size={20} />
+                    </a>
+                    <a
+                      class="admin-danger-button admin-icon-action"
+                      href={`/admin/beitraege/${article.id}/loeschen`}
+                      aria-label={`„${article.title}“ löschen`}
+                      data-admin-delete
+                      data-item-id={article.id}
+                      data-item-name={article.title}
+                    >
+                      <Icon name="trash" size={20} />
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div class="admin-empty">
+          <>
+            <strong>Keine Beiträge gefunden.</strong>
+            <p>Passe die Filter an oder lege einen neuen Beitrag an.</p>
+          </>
+        </div>
+      )
+    }
+  </section>
+
+  <AdminDeleteDialog
+    eyebrow="Astro Fanblog Redaktion"
+    description="Der Beitrag wird dauerhaft gelöscht und ist danach nicht mehr erreichbar. Diese Aktion kann nicht rückgängig gemacht werden."
+    confirmLabel="Beitrag endgültig löschen"
+  />
+
+  <script>
+    const toast = document.querySelector<HTMLElement>('[data-admin-toast]');
+    if (toast) {
+      const dismiss = () => {
+        if (toast.classList.contains('is-leaving')) return;
+        toast.classList.add('is-leaving');
+        window.setTimeout(() => toast.remove(), 180);
+      };
+      document
+        .querySelector('[data-dismiss-toast]')
+        ?.addEventListener('click', dismiss);
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete('saved');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+    }
+
+    const dialog = document.querySelector<HTMLDialogElement>(
+      '[data-admin-delete-dialog]',
+    );
+    const title = dialog?.querySelector<HTMLElement>(
+      '[data-admin-delete-title]',
+    );
+    const form = dialog?.querySelector<HTMLFormElement>(
+      '[data-admin-delete-form]',
+    );
+    const confirmInput = dialog?.querySelector<HTMLInputElement>(
+      '[data-admin-delete-confirm]',
+    );
+
+    document
+      .querySelectorAll<HTMLAnchorElement>('[data-admin-delete]')
+      .forEach((link) => {
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (!dialog || !title || !form || !confirmInput) return;
+          title.textContent = `„${link.dataset.itemName}“ endgültig löschen?`;
+          form.action = link.getAttribute('href') ?? '';
+          confirmInput.value = link.dataset.itemId ?? '';
+          dialog.showModal();
+        });
+      });
+
+    dialog
+      ?.querySelector('[data-admin-delete-cancel]')
+      ?.addEventListener('click', () => dialog.close());
+  </script>
+</AdminLayout>

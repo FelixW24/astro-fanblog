@@ -1,0 +1,268 @@
+---
+import {
+  builtInChartTemplates,
+  type ChartTemplate,
+} from '../lib/player-chart-templates';
+interface Props {
+  templates: ChartTemplate[];
+  position: string;
+  unavailable?: boolean;
+}
+const { templates, position, unavailable = false } = Astro.props;
+const allTemplates = [...builtInChartTemplates, ...templates];
+---
+
+<div class="chart-templates" data-chart-templates>
+  <label class="field">
+    <select data-template-picker aria-label="Diagrammvorlage">
+      {allTemplates.map((template) => (
+        <option
+          value={template.id}
+          data-position={template.position}
+          data-template={JSON.stringify(template)}
+          hidden={template.position !== position}
+          disabled={template.position !== position}
+          selected={template.id === `builtin:${position}`}
+        >
+          {template.name}
+        </option>
+      ))}
+    </select>
+  </label>
+  <button type="button" class="admin-secondary-button" data-template-apply>
+    Vorlage übernehmen
+  </button>
+  <details>
+    <summary>Eigene Vorlage speichern, umbenennen oder löschen</summary>
+    <label class="field">
+      <span>Vorlagenname</span>
+      <input
+        data-template-name
+        maxlength="80"
+        placeholder="Zum Beispiel: Innenverteidiger"
+      />
+      <small>
+        Gespeichert werden die Merkmale aus „Werte“ und der Diagrammtyp für die
+        gewählte Spielerposition. Zahlen werden nicht übernommen. Wählst du
+        eine eigene Vorlage aus, steht ihr Name hier und kann umbenannt werden.
+      </small>
+    </label>
+    <div class="template-actions">
+      <button
+        type="button"
+        class="admin-secondary-button"
+        data-template-save
+        disabled={unavailable}
+      >
+        Als Vorlage speichern
+      </button>
+      <button
+        type="button"
+        class="admin-secondary-button"
+        data-template-rename
+        disabled
+      >
+        Gewählte Vorlage umbenennen
+      </button>
+      <button
+        type="button"
+        class="admin-danger-button"
+        data-template-delete
+        disabled
+      >
+        Gewählte Vorlage löschen
+      </button>
+    </div>
+  </details>
+  <p data-template-status role="status" aria-live="polite" hidden></p>
+  <noscript>
+    Zum Laden und Speichern von Diagrammvorlagen aktiviere JavaScript.
+  </noscript>
+</div>
+
+<script>
+  import {
+    templateMetricsText,
+    type ChartTemplate,
+  } from '../lib/player-chart-templates';
+
+  document
+    .querySelectorAll<HTMLElement>('[data-chart-templates]')
+    .forEach((root) => {
+      const form = document.querySelector<HTMLFormElement>(
+        '#player-profile-form',
+      );
+      const picker = root.querySelector<HTMLSelectElement>(
+        '[data-template-picker]',
+      );
+      const name = root.querySelector<HTMLInputElement>('[data-template-name]');
+      const status = root.querySelector<HTMLElement>('[data-template-status]');
+      const save = root.querySelector<HTMLButtonElement>(
+        '[data-template-save]',
+      );
+      const rename = root.querySelector<HTMLButtonElement>(
+        '[data-template-rename]',
+      );
+      const remove = root.querySelector<HTMLButtonElement>(
+        '[data-template-delete]',
+      );
+      const apply = root.querySelector<HTMLButtonElement>(
+        '[data-template-apply]',
+      );
+      if (!form || !picker || !name || !status || !save || !rename || !remove || !apply)
+        return;
+      const position = form.elements.namedItem('position') as HTMLSelectElement;
+      const metrics = form.elements.namedItem(
+        'chart_metrics',
+      ) as HTMLTextAreaElement;
+      const type = form.elements.namedItem('chart_type') as HTMLSelectElement;
+      const title = form.elements.namedItem('chart_title') as HTMLInputElement;
+      let busy = false;
+      const available = !save.disabled;
+      const message = (text: string, error = false) => {
+        status.textContent = text;
+        status.hidden = false;
+        status.setAttribute('role', error ? 'alert' : 'status');
+      };
+      const sync = () => {
+        for (const option of picker.options) {
+          const active = option.dataset.position === position.value;
+          option.hidden = !active;
+          option.disabled = !active;
+        }
+        if (!picker.selectedOptions[0] || picker.selectedOptions[0].disabled)
+          picker.value = `builtin:${position.value}`;
+        picker.disabled = busy;
+        save.disabled = busy || !available;
+        const customSelected = !picker.value.startsWith('builtin:');
+        rename.disabled = busy || !available || !customSelected;
+        remove.disabled = busy || !available || !customSelected;
+        apply.disabled = busy;
+      };
+      position.addEventListener('change', sync);
+      picker.addEventListener('change', () => {
+        const selected = picker.selectedOptions[0];
+        if (selected && !picker.value.startsWith('builtin:')) {
+          const template: ChartTemplate = JSON.parse(selected.dataset.template!);
+          name.value = template.name;
+        }
+        sync();
+      });
+      sync();
+      apply.addEventListener('click', () => {
+        const template: ChartTemplate = JSON.parse(
+          picker.selectedOptions[0].dataset.template!,
+        );
+        metrics.value = templateMetricsText(template.metric_labels);
+        type.value = template.chart_type;
+        if (!title.value.trim()) title.value = template.name;
+        metrics.removeAttribute('aria-invalid');
+        metrics.dispatchEvent(new Event('input', { bubbles: true }));
+        message(
+          `Vorlage „${template.name}“ übernommen. Ergänze jetzt für jedes Merkmal den Wert von 0 bis 100.`,
+        );
+        metrics.focus();
+      });
+      const mutate = async (action: 'save' | 'rename' | 'delete') => {
+        busy = true;
+        const selected = picker.value;
+        const data = new FormData(form);
+        data.set('action', action);
+        data.set('template_name', name.value);
+        data.set('template_id', selected);
+        sync();
+        try {
+          const response = await fetch('/admin/spieler/vorlagen', {
+            method: 'POST',
+            body: data,
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            message(
+              result.error ??
+                'Die Vorlagenaktion ist fehlgeschlagen. Deine Eingaben bleiben erhalten.',
+              true,
+            );
+            return;
+          }
+          if (action === 'save') {
+            const template: ChartTemplate = result.template;
+            const option = new Option(template.name, template.id);
+            option.dataset.position = template.position;
+            option.dataset.template = JSON.stringify(template);
+            picker.add(option);
+            // A changed player position must not select a template for another position.
+            if (position.value === template.position)
+              picker.value = template.id;
+            name.value = '';
+            message(
+              `Vorlage „${template.name}“ gespeichert. Sie steht auch bei anderen Spielern dieser Position zur Verfügung. Das Spielerprofil wurde dadurch noch nicht gespeichert.`,
+            );
+          } else if (action === 'rename') {
+            const template: ChartTemplate = result.template;
+            const option = picker.querySelector<HTMLOptionElement>(
+              `option[value="${selected}"]`,
+            );
+            if (option) {
+              option.textContent = template.name;
+              option.dataset.template = JSON.stringify(template);
+            }
+            message(
+              `Vorlage in „${template.name}“ umbenannt. Bereits gespeicherte Spielerdiagramme bleiben unverändert.`,
+            );
+          } else {
+            picker.querySelector(`option[value="${selected}"]`)?.remove();
+            picker.value = `builtin:${position.value}`;
+            message(
+              'Vorlage gelöscht. Bereits gespeicherte Spielerdiagramme bleiben erhalten.',
+            );
+          }
+        } catch {
+          message(
+            'Die Vorlagenaktion ist fehlgeschlagen. Prüfe deine Verbindung und versuche es erneut. Deine Eingaben bleiben erhalten.',
+            true,
+          );
+        } finally {
+          busy = false;
+          sync();
+        }
+      };
+      save.addEventListener('click', () => {
+        void mutate('save');
+      });
+      rename.addEventListener('click', () => {
+        void mutate('rename');
+      });
+      remove.addEventListener('click', () => {
+        void mutate('delete');
+      });
+    });
+</script>
+
+<style>
+  .chart-templates {
+    display: grid;
+    gap: 0.75rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border-color, currentColor);
+    margin-bottom: 1.25rem;
+  }
+  .chart-templates p {
+    margin: 0;
+  }
+  .chart-templates details {
+    display: grid;
+  }
+  .chart-templates summary {
+    cursor: pointer;
+    padding-block: 0.5rem;
+  }
+  .template-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .template-actions button {
+    min-width: 0;
+  }
+</style>

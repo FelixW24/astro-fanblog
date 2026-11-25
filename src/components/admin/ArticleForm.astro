@@ -1,0 +1,75 @@
+---
+import type { ArticleFormValues } from '../../lib/admin';
+import ArticleBasicsStep from './article-editor/ArticleBasicsStep.astro';
+import ArticleContentStep from './article-editor/ArticleContentStep.astro';
+import ArticleSeoStep from './article-editor/ArticleSeoStep.astro';
+import ArticleSettingsSidebar from './article-editor/ArticleSettingsSidebar.astro';
+import ArticleWizardActions from './article-editor/ArticleWizardActions.astro';
+import EditorToolbar from './article-editor/EditorToolbar.astro';
+import EditorDialog from './article-editor/EditorDialog.astro';
+
+interface Props {
+  values: ArticleFormValues;
+  error?: string | null;
+  mode: 'create' | 'edit';
+  articleId?: number;
+}
+
+const { values, error = null, mode, articleId } = Astro.props;
+---
+
+{
+  error && (
+    <div class="admin-alert admin-alert--error" role="alert" data-notification>
+      <strong>Der Beitrag konnte nicht gespeichert werden.</strong>
+      <span>{error}</span>
+    </div>
+  )
+}
+
+{
+  mode === 'edit' && articleId && (
+    <form
+      id={`delete-${articleId}`}
+      method="post"
+      action={`/admin/beitraege/${articleId}/loeschen`}
+      data-delete-form
+    />
+  )
+}
+
+<EditorDialog />
+
+<form
+  id="article-form"
+  class="article-editor"
+  method="post"
+  novalidate
+  data-current-step="1"
+  data-auto-slug={mode === 'create' ? 'true' : 'false'}
+  data-draft-key={`fanblog:editor:${mode}:${articleId ?? 'new'}`}
+>
+  <EditorToolbar />
+
+  <div
+    class="editor-validation-notice"
+    data-editor-validation-notice
+    data-notification
+    role="alert"
+    hidden
+  >
+  </div>
+
+  <div class="editor-main">
+    <ArticleBasicsStep {values} />
+    <ArticleContentStep {values} />
+    <ArticleSeoStep {values} />
+  </div>
+
+  <ArticleSettingsSidebar {values} {mode} {articleId} />
+  <ArticleWizardActions {mode} />
+
+  <script>
+    import '../../scripts/article-editor';
+  </script>
+</form>

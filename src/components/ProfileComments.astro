@@ -1,0 +1,90 @@
+---
+import {
+  commentPermalink,
+  profileCommentsPageSize,
+  type OwnComment,
+} from '../lib/profile-comments';
+
+interface Props {
+  comments: OwnComment[];
+  count: number;
+  page: number;
+  error: boolean;
+}
+const { comments, count, page, error } = Astro.props;
+---
+
+<section
+  class="reader-workspace-card profile-comments"
+  aria-label="Meine Kommentare"
+>
+  {
+    error ? (
+      <p role="alert">
+        Deine Kommentare konnten nicht geladen werden. Bitte versuche es später
+        erneut.
+      </p>
+    ) : comments.length === 0 ? (
+      <div class="profile-comments-empty">
+        {page === 1 ? (
+          <>
+            <strong>Noch keine Kommentare.</strong>
+            <p>Schreibe den ersten Kommentar unter einem Beitrag.</p>
+          </>
+        ) : (
+          <strong>Keine Kommentare auf dieser Seite.</strong>
+        )}
+      </div>
+    ) : (
+      <ul class="profile-comments-list">
+        {comments.map((comment) => (
+          <li>
+            <a href={commentPermalink(comment.articles.slug, comment.id)}>
+              <span class="profile-comment-meta">
+                {comment.parent_id ? 'Deine Antwort' : 'Dein Kommentar'} ·{' '}
+                <time datetime={comment.created_at}>
+                  {new Date(comment.created_at).toLocaleString('de-DE', {
+                    timeZone: 'Europe/Berlin',
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </time>
+              </span>
+              <h3>{comment.articles.title}</h3>
+              <p class="profile-comment-body">{comment.body}</p>
+              <span class="profile-comment-link">
+                Kommentar und Diskussion ansehen →
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    !error && (page > 1 || count > profileCommentsPageSize) && (
+      <nav
+        class="profile-comments-pagination"
+        aria-label="Eigene Kommentarseiten"
+      >
+        {page > 1 && (
+          <a
+            data-profile-page
+            href={`/profil?ansicht=modal&kommentarseite=${page - 1}`}
+          >
+            Neuere Kommentare
+          </a>
+        )}
+        <span>Seite {page}</span>
+        {count > page * profileCommentsPageSize && (
+          <a
+            data-profile-page
+            href={`/profil?ansicht=modal&kommentarseite=${page + 1}`}
+          >
+            Ältere Kommentare
+          </a>
+        )}
+      </nav>
+    )
+  }
+</section>

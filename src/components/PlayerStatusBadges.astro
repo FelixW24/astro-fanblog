@@ -1,0 +1,73 @@
+---
+import Icon from './Icon.astro';
+import type { Player } from '../lib/content';
+import { injuryDescription, loanDirection } from '../lib/player-availability';
+interface Props {
+  player: Pick<
+    Player,
+    'squad_status' | 'is_injured' | 'injury_since' | 'injury_until'
+  >;
+}
+const { player } = Astro.props;
+const direction = loanDirection(player.squad_status);
+const injury = injuryDescription(player);
+---
+
+{
+  (direction || injury) && (
+    <div class="player-status-badges" aria-label="Spielerstatus">
+      {direction && (
+        <span
+          class="player-status-badge"
+          title={
+            direction === 'incoming'
+              ? 'Von einem anderen Verein geliehen'
+              : 'An einen anderen Verein verliehen'
+          }
+        >
+          <Icon
+            name={direction === 'incoming' ? 'arrow-left' : 'arrow-right'}
+            size={16}
+          />
+          {direction === 'incoming' ? 'Geliehen' : 'Verliehen'}
+        </span>
+      )}
+      {injury && (
+        <span
+          class="player-status-badge player-status-badge--injury"
+          title={injury}
+        >
+          <Icon name="medical" size={16} />
+          {injury}
+        </span>
+      )}
+    </div>
+  )
+}
+<style>
+  .player-status-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+  }
+  .player-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 1px solid var(--color-fog);
+    border-radius: 6px;
+    color: var(--color-blueprint-blue);
+    background: var(--color-canvas);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .player-status-badge--injury {
+    color: var(--color-ink-black);
+  }
+  .player-status-badge :global(svg) {
+    flex-shrink: 0;
+  }
+</style>

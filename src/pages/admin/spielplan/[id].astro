@@ -1,0 +1,232 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import MatchForm from '../../../components/admin/MatchForm.astro';
+import AdminDeleteDialog from '../../../components/admin/AdminDeleteDialog.astro';
+import { getAdmin, isSameOrigin } from '../../../lib/admin';
+import { matchToForm, parseMatchForm } from '../../../lib/matches';
+import {
+  getMatchLineupSelection,
+  parseBenchIds,
+  parseStarterIds,
+  parseSubstitutions,
+  syncMatchLineup,
+  validateLineupSelection,
+  type LineupSelection,
+} from '../../../lib/admin-match-lineup';
+import { importFotMobData, mergeFotMobImport } from '../../../lib/fotmob';
+import { logAdminAction } from '../../../lib/audit-log';
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+const id = Number(Astro.params.id);
+if (!Number.isSafeInteger(id) || id < 1) return Astro.redirect('/404');
+const { data: match, error: loadError } = await supabase
+  .from('matches')
+  .select('*')
+  .eq('id', id)
+  .maybeSingle();
+if (!match && !loadError) return Astro.redirect('/404');
+// Nur der eigene Kader (Profis und Leihen) steht als Aufstellung zur Auswahl.
+const { data: squadData, error: squadError } = await supabase
+  .from('players')
+  .select('id, name, shirt_number, position, is_injured')
+  .in('squad_status', ['first-team', 'loan-in'])
+  .order('shirt_number', { ascending: true, nullsFirst: false })
+  .order('name');
+const squad = squadData ?? [];
+let values = match ? matchToForm(match) : null;
+let error: string | null = loadError
+  ? 'Das Spiel konnte nicht geladen werden.'
+  : null;
+let lineup: LineupSelection = {
+  starterIds: [],
+  benchIds: [],
+  substitutions: [],
+};
+// Schlägt das Laden von Kader oder Aufstellung fehl, darf das Formular nicht
+// mit leerer Vorbelegung abgeschickt werden — sonst löscht der Sync alle
+// Auto-Einträge. Der Flag wird als Hidden-Feld mitgeschickt und serverseitig
+// beim POST abgelehnt.
+let lineupIncomplete = false;
+let fotmobUrl = '';
+let importOutcome: 'ok' | 'failed' | null = null;
+if (match && Astro.request.method !== 'POST') {
+  try {
+    lineup = await getMatchLineupSelection(supabase, id);
+  } catch {
+    lineupIncomplete = true;
+    lineup = { starterIds: [], benchIds: [], substitutions: [] };
+  }
+}
+if (squadError) lineupIncomplete = true;
+if (lineupIncomplete && Astro.request.method !== 'POST')
+  error =
+    'Kader oder Aufstellung konnten nicht geladen werden. Bitte lade die Seite neu — Speichern ist vorübergehend verweigert, damit keine Aufstellungsdaten verloren gehen.';
+if (Astro.request.method === 'POST' && match) {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const intent = form.get('intent');
+    if (intent === 'delete' && form.get('confirm_delete') === 'on') {
+      const result = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
+      if (result.error || !result.data)
+        error = 'Das Spiel konnte nicht gelöscht werden.';
+      else {
+        logAdminAction({
+          action: 'delete',
+          entity: 'match',
+          entityId: id,
+          actorEmail: user.email ?? undefined,
+          detail: match ? `opponent=${match.opponent}` : undefined,
+        });
+        return Astro.redirect('/admin/spielplan?saved=deleted', 303);
+      }
+    } else if (intent === 'save') {
+      const parsed = parseMatchForm(form);
+      const parsedSubs = parseSubstitutions(form);
+      values = parsed.values;
+      lineup = {
+        starterIds: parseStarterIds(form),
+        benchIds: parseBenchIds(form),
+        substitutions: parsedSubs.subs,
+      };
+      fotmobUrl = String(form.get('fotmob_url') ?? '').trim();
+      error =
+        parsed.error ??
+        parsedSubs.error ??
+        (form.get('lineup_incomplete') === '1'
+          ? 'Die Aufstellung wurde nicht vollständig geladen. Bitte lade die Seite neu und speichere erneut, damit keine Aufstellungsdaten verloren gehen.'
+          : null) ??
+        validateLineupSelection(lineup, squad);
+      if (!error && fotmobUrl) {
+        const imported = await importFotMobData(fotmobUrl, values.is_home);
+        if (imported.error) importOutcome = 'failed';
+        else if (imported.result) {
+          values = mergeFotMobImport(values, imported.result);
+          parsed.values = values;
+          parsed.payload = {
+            ...values,
+            kickoff_at: parsed.payload.kickoff_at,
+            matchcenter_url: values.matchcenter_url || null,
+          };
+          importOutcome = 'ok';
+        }
+      }
+      if (!error) {
+        const result = await supabase
+          .from('matches')
+          .update(parsed.payload)
+          .eq('id', id)
+          .select('id')
+          .maybeSingle();
+        if (result.error || !result.data)
+          error = 'Das Spiel konnte nicht gespeichert werden.';
+        else {
+          const syncError = await syncMatchLineup(supabase, id, lineup, squad);
+          if (syncError)
+            error = `Änderungen gespeichert, aber die Aufstellung wurde nicht übernommen: ${syncError}`;
+          else {
+            logAdminAction({
+              action: 'update',
+              entity: 'match',
+              entityId: id,
+              actorEmail: user.email ?? undefined,
+              detail: match ? `opponent=${match.opponent}` : undefined,
+            });
+            const importParam = importOutcome ? `&import=${importOutcome}` : '';
+            return Astro.redirect(
+              `/admin/spielplan?saved=updated${importParam}`,
+              303,
+            );
+          }
+        }
+      }
+    } else error = 'Bitte bestätige das Löschen des Spiels.';
+    if (error) Astro.response.status = 400;
+  }
+}
+---
+
+<AdminLayout title="Spiel bearbeiten" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading">
+    <div>
+      <a class="admin-back" href="/admin/spielplan">← Spielplan</a><h1>
+        Spiel bearbeiten
+      </h1>
+    </div>
+  </header>
+  {
+    error && (
+      <div
+        class="admin-alert admin-alert--error"
+        role="alert"
+        data-notification
+      >
+        {error}
+      </div>
+    )
+  }
+  {
+    values && (
+      <>
+        <>
+          <MatchForm
+            values={values}
+            editing
+            squad={squad}
+            starterIds={lineup.starterIds}
+            benchIds={lineup.benchIds}
+            substitutions={lineup.substitutions}
+            lineupIncomplete={lineupIncomplete}
+            fotmobUrl={fotmobUrl}
+          />
+        </>
+      </>
+    )
+  }
+  <AdminDeleteDialog
+    eyebrow="Spielplan"
+    description="Das Spiel wird dauerhaft aus dem Spielplan entfernt. Diese Aktion kann nicht rückgängig gemacht werden."
+    confirmLabel="Spiel endgültig löschen"
+  >
+    <input slot="fields" type="hidden" name="intent" value="delete" />
+  </AdminDeleteDialog>
+  <script>
+    const deleteDialog = document.querySelector<HTMLDialogElement>(
+      '[data-admin-delete-dialog]',
+    );
+    const deleteTitle = deleteDialog?.querySelector<HTMLElement>(
+      '[data-admin-delete-title]',
+    );
+    const deleteForm = deleteDialog?.querySelector<HTMLFormElement>(
+      '[data-admin-delete-form]',
+    );
+    const deleteConfirm = deleteDialog?.querySelector<HTMLInputElement>(
+      '[data-admin-delete-confirm]',
+    );
+    const deleteTrigger = document.querySelector<HTMLButtonElement>(
+      '[data-match-delete]',
+    );
+    deleteTrigger?.addEventListener('click', () => {
+      if (!deleteDialog || !deleteTitle || !deleteForm || !deleteConfirm)
+        return;
+      deleteTitle.textContent = `${deleteTrigger.dataset.itemName ?? 'Dieses Spiel'} endgültig löschen?`;
+      deleteForm.action = window.location.pathname;
+      deleteConfirm.value = 'on';
+      deleteDialog.showModal();
+    });
+    deleteDialog
+      ?.querySelector('[data-admin-delete-cancel]')
+      ?.addEventListener('click', () => deleteDialog.close());
+  </script>
+</AdminLayout>

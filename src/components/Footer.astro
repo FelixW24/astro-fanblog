@@ -1,0 +1,52 @@
+---
+import BugReportDialog from './BugReportDialog.astro';
+import Icon from './Icon.astro';
+
+const currentYear = new Date().getFullYear();
+// Fehlermeldungen können nur angemeldete Leser senden; der Server prüft die
+// Session erneut, das Footer-UI blendet das Feature für Gäste aus.
+const readerUser = Astro.locals.readerUser;
+---
+
+<footer class="site-footer">
+  <div class="shell footer-grid">
+    <div class="footer-brand">
+      <a class="footer-wordmark" href="/">Astro Fanblog</a>
+      <p>Unabhängiger Fanblog rund um den FC Example.</p>
+    </div>
+    <nav class="footer-navigation" aria-label="Rechtliche Hinweise">
+      <span class="footer-kicker">Rechtliches</span>
+      <ul class="footer-legal-links">
+        <li><a href="/impressum">Impressum</a></li>
+        <li><a href="/agb">AGB</a></li>
+        <li><a href="/datenschutz">Datenschutz</a></li>
+      </ul>
+    </nav>
+    <div class="footer-signoff">
+      <a
+        class="footer-signoff__link"
+        href="https://www.dfb.de/gegenrassismus"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Love Football – Hate Racism
+        <Icon name="heart" size={16} />
+      </a>
+    </div>
+  </div>
+  <div class="shell footer-meta">
+    <small>© {currentYear} Astro Fanblog</small>
+    <small>
+      Astro Fanblog · FC-Fanblog — Analysen, Nachrichten und Geschichten rund um den
+      FC Example.
+    </small>
+    {
+      readerUser && (
+        <button type="button" class="footer-meta-report" data-bug-report-open>
+          Fehler melden
+        </button>
+      )
+    }
+  </div>
+  {readerUser && <BugReportDialog />}
+</footer>

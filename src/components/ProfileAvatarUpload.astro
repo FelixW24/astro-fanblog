@@ -1,0 +1,63 @@
+---
+import AvatarCropDialog from './AvatarCropDialog.astro';
+
+interface Props {
+  hasCustomAvatar: boolean;
+  inputId?: string;
+  triggerless?: boolean;
+}
+const {
+  hasCustomAvatar,
+  inputId = 'profilbild-datei',
+  triggerless = false,
+} = Astro.props;
+---
+
+<!-- Profilbild-Upload: Verdrahtung übernimmt src/scripts/profile-avatar.ts.
+     Standard öffnet die Schaltfläche das Zuschneide-Modal (das Bild wird darin
+     ausgewählt, zugeschnitten und erst „Übernehmen“ lädt es hoch). Mit
+     `triggerless` gibt es keinen sichtbaren Button – dann startet der Klick
+     auf das Profilbild selbst den Upload und hier laufen nur noch das
+     Datei-Feld, das Entfernen und das Modal. Ablehnungen erfährt der Nutzer
+     über Toasts (src/scripts/reader-toast.ts). -->
+<div class="avatar-upload" data-avatar-upload>
+  {
+    !triggerless && (
+      <div class="avatar-upload__actions">
+        <label class="avatar-upload__label" for={inputId} data-avatar-label>
+          Profilbild hochladen
+        </label>
+        <button
+          type="button"
+          class="avatar-upload__remove"
+          data-avatar-remove
+          hidden={!hasCustomAvatar}
+        >
+          Profilbild entfernen
+        </button>
+      </div>
+    )
+  }
+  <input
+    type="file"
+    id={inputId}
+    class="visually-hidden"
+    accept="image/jpeg,image/png,image/webp"
+    data-avatar-input
+  />
+  {
+    triggerless && (
+      <div class="avatar-upload__actions">
+        <button
+          type="button"
+          class="avatar-upload__remove"
+          data-avatar-remove
+          hidden={!hasCustomAvatar}
+        >
+          Profilbild entfernen
+        </button>
+      </div>
+    )
+  }
+  <AvatarCropDialog />
+</div>

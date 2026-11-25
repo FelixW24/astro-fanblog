@@ -1,0 +1,73 @@
+---
+import type { ArticleFormValues } from '../../../lib/admin';
+
+interface Props {
+  values: ArticleFormValues;
+}
+
+const { values } = Astro.props;
+---
+
+<section class="editor-panel editor-panel--story" data-wizard-step="1">
+  <div class="section-heading">
+    <div>
+      <span class="section-kicker">01 · Geschichte</span>
+      <h2>Beitragskopf</h2>
+    </div>
+    <span class="section-state" data-check-label="headline">Offen</span>
+  </div>
+
+  <label class="field field--title">
+    <span
+      >Titel <span class="required-marker" aria-hidden="true"></span><small
+        id="title-count">{values.title.length}/180</small
+      ></span
+    >
+    <input
+      id="article-title"
+      name="title"
+      value={values.title}
+      minlength="5"
+      maxlength="180"
+      required
+      autofocus
+      placeholder="Was ist die zentrale Aussage?"
+    />
+  </label>
+
+  <label class="field">
+    <span>URL-Slug<span class="required-marker" aria-hidden="true"></span></span
+    >
+    <div class="slug-input">
+      <small>/beitraege/</small><input
+        id="article-slug"
+        name="slug"
+        value={values.slug}
+        pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+        required
+      />
+    </div>
+    <small
+      >Beim Anlegen automatisch erzeugt; nach Veröffentlichung möglichst nicht
+      mehr ändern.</small
+    >
+  </label>
+
+  <label class="field">
+    <span
+      >Teaser <span class="required-marker" aria-hidden="true"></span><small
+        id="excerpt-count">{values.excerpt.length}/360</small
+      ></span
+    >
+    <textarea
+      id="article-excerpt"
+      name="excerpt"
+      rows="4"
+      minlength="20"
+      maxlength="360"
+      required
+      placeholder="Die wichtigste Aussage in zwei bis drei Sätzen …"
+      >{values.excerpt}</textarea
+    >
+  </label>
+</section>

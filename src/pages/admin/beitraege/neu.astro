@@ -1,0 +1,47 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ArticleForm from '../../../components/admin/ArticleForm.astro';
+import { emptyArticle, getAdmin } from '../../../lib/admin';
+import { saveArticleFromRequest } from '../../../lib/admin-article-save';
+import { dispatchNewArticleNotification } from '../../../lib/notifications';
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+let values = { ...emptyArticle };
+let error: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const result = await saveArticleFromRequest({
+    request: Astro.request,
+    supabase,
+    mode: 'create',
+    initialValues: values,
+    actorEmail: user.email ?? undefined,
+  });
+  values = result.values;
+  error = result.error;
+  if (result.status) Astro.response.status = result.status;
+  if (result.redirectTo) {
+    // Erstmalig sichtbarer Beitrag: Abonnenten per In-App und E-Mail informieren.
+    if (result.publishedSlug)
+      await dispatchNewArticleNotification({ slug: result.publishedSlug });
+    return Astro.redirect(result.redirectTo, 303);
+  }
+}
+---
+
+<AdminLayout title="Neuer Beitrag" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <a class="admin-back" href="/admin">← Beiträge</a><h1>Neuer Beitrag</h1><p
+      >
+        Starte als Entwurf oder veröffentliche direkt.
+      </p>
+    </div>
+  </header>
+  <ArticleForm {values} {error} mode="create" />
+</AdminLayout>

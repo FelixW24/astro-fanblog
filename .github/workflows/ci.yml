@@ -1,0 +1,199 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, opensource]
+  push:
+    branches: [main, opensource]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  make-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Catch source/config errors before downloading browsers or starting Docker.
+      # The test suite itself still runs after the integration environment is ready.
+      - name: Preflight lint
+        run: npm run lint
+      - name: Preflight type check
+        run: npm run check
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package-lock.json') }}
+      - name: Configure reliable Ubuntu package downloads
+        timeout-minutes: 1
+        run: |
+          # The runner's default mirror list starts with azure.archive.ubuntu.com.
+          # Use the official HTTPS archive directly, including security updates.
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          sudo tee /etc/apt/apt.conf.d/99ci-network > /dev/null <<'EOF'
+          Acquire::Retries "2";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          APT::Update::Error-Mode "any";
+          EOF
+      - name: Install Chromium system dependencies
+        timeout-minutes: 8
+        run: npx --no-install playwright install-deps chromium
+      - name: Install Chromium browser
+        timeout-minutes: 5
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '60000'
+        run: npx --no-install playwright install chromium
+      - name: Start Supabase (retry transient registry failures only)
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/supabase-start.log"
+          for attempt in 1 2 3; do
+            if npm run supabase:start >"$log" 2>&1; then
+              cat "$log"
+              exit 0
+            fi
+            cat "$log"
+            # Only retry network/rate-limit errors, not configuration or auth failures.
+            if ! grep -Eiq 'toomanyrequests|rate exceeded|rate limit|HTTP 429|TLS handshake timeout|connection reset by peer|503 Service Unavailable' "$log"; then
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "::warning::Supabase registry temporarily unavailable; retry $attempt/3"
+            sleep $((attempt * 10))
+          done
+      - run: node scripts/write-ci-env.mjs
+      # PRs laufen gegen die schlanke Kernsuite, um Runner-Zeit zu sparen;
+      # Pushes auf main laufen weiterhin die volle Testsuite.
+      - name: Kernsuite (Pull Request)
+        if: github.event_name == 'pull_request'
+        run: make test-essential
+      - name: Volle Testsuite (main)
+        if: github.event_name == 'push'
+        run: make test
+      - uses: actions/upload-artifact@v6
+        # Berichte sind Diagnose-Komfort; ein fehlgeschlagener Upload
+        # (z. B. bei erschöpftem Artifact-Quota) darf den Job nicht rot machen.
+        if: always()
+        continue-on-error: true
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          # Kurze Aufbewahrung: Playwright-Berichte sind mehrere MB groß;
+          # 90 Tage Standardretention ließen das Artifact-Quota ansteigen.
+          retention-days: 3
+
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      coverage: ${{ steps.coverage_summary.outputs.coverage }}
+      coverage_result: ${{ steps.coverage_test.outcome }}
+      audit_result: ${{ steps.audit.outcome }}
+    env:
+      PUBLIC_SUPABASE_URL: http://127.0.0.1:55321
+      PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - id: coverage_test
+        run: npm run test:coverage
+      - id: coverage_summary
+        if: always()
+        run: node scripts/ci-coverage-output.mjs
+      - id: audit
+        if: always()
+        run: node scripts/ci-audit-gate.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        # Optionaler Diagnose-Upload; Quota-Fehler dürfen den Job nicht rot machen.
+        continue-on-error: true
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report:
+    if: always()
+    needs: [make-test, metrics]
+    # Informational only; main requires make-test and metrics, not report.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: CI-Ergebnisse im PR aktualisieren
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        env:
+          MAKE_TEST_RESULT: ${{ needs.make-test.result }}
+          COVERAGE_RESULT: ${{ needs.metrics.outputs.coverage_result }}
+          AUDIT_RESULT: ${{ needs.metrics.outputs.audit_result }}
+          COVERAGE_SUMMARY: ${{ needs.metrics.outputs.coverage }}
+        with:
+          script: |
+            const marker = '<!-- astro-fanblog-ci-report -->';
+            const labels = {
+              success: '✅ Bestanden',
+              failure: '❌ Fehlgeschlagen',
+              cancelled: '⏹️ Abgebrochen',
+              skipped: '⏭️ Übersprungen',
+            };
+            const status = (value) => labels[value] ?? '⏳ Nicht verfügbar';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const coverage = process.env.COVERAGE_SUMMARY || 'Keine Werte verfügbar';
+            const body = [
+              marker,
+              '### CI-Ergebnisse',
+              `Commit: \`${context.payload.pull_request.head.sha.slice(0, 7)}\``,
+              '',
+              '| Prüfung | Ergebnis |',
+              '| --- | --- |',
+              `| Testsuite (PR: Kernsuite, main: voll — Build, ESLint, Astro-Check, Unit-Tests, RLS, Browser-Tests) | ${status(process.env.MAKE_TEST_RESULT)} |`,
+              `| Testabdeckung | ${status(process.env.COVERAGE_RESULT)} · ${coverage} |`,
+              `| Abhängigkeiten (\`npm audit\`, high+) | ${status(process.env.AUDIT_RESULT)} |`,
+              '',
+              `[Vollständige Logs und Testberichte ansehen](${runUrl})`,
+              '',
+              '_Dieser Kommentar wird bei einem erneuten Lauf aktualisiert._',
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const previous = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

@@ -1,0 +1,105 @@
+---
+import Icon from './Icon.astro';
+---
+
+<button
+  class="mobile-navigation-toggle"
+  type="button"
+  data-mobile-menu-toggle
+  aria-label="Menü öffnen"
+  aria-controls="public-navigation"
+  aria-expanded="false"
+>
+  <Icon name="menu" size={22} />
+</button>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>(
+    '[data-mobile-menu-toggle]',
+  );
+  const navigation = document.querySelector<HTMLElement>('#public-navigation');
+  const close = navigation?.querySelector<HTMLButtonElement>(
+    '[data-mobile-menu-close]',
+  );
+  const shell = document.querySelector<HTMLElement>(
+    '[data-site-shell="public"]',
+  );
+  const mobile = window.matchMedia('(max-width: 820px)');
+
+  if (toggle && navigation && close && shell) {
+    const backdrop = document.createElement('button');
+    backdrop.type = 'button';
+    backdrop.className = 'mobile-navigation-backdrop';
+    backdrop.setAttribute('aria-label', 'Menü schließen');
+    backdrop.tabIndex = -1;
+    backdrop.hidden = true;
+    document.body.append(backdrop);
+    let open = false;
+    const setOpen = (value: boolean, restoreFocus = true) => {
+      open = value && mobile.matches;
+      shell.dataset.mobileMenuOpen = String(open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute(
+        'aria-label',
+        open ? 'Menü schließen' : 'Menü öffnen',
+      );
+      backdrop.hidden = !open;
+      navigation.inert = mobile.matches && !open;
+      document.body.classList.toggle('mobile-navigation-open', open);
+      for (const element of document.querySelectorAll<HTMLElement>(
+        '.site-content, .header-main > .brand, .mobile-header-actions',
+      )) {
+        element.inert = open;
+      }
+      if (open) {
+        navigation.setAttribute('role', 'dialog');
+        navigation.setAttribute('aria-modal', 'true');
+        navigation.setAttribute('aria-label', 'Seitennavigation');
+        // Focus after the drawer enters the viewport and inert changes settle.
+        window.setTimeout(
+          () => {
+            if (open) close.focus();
+          },
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 0
+            : 190,
+        );
+      } else {
+        navigation.removeAttribute('role');
+        navigation.removeAttribute('aria-modal');
+        navigation.removeAttribute('aria-label');
+        if (restoreFocus) toggle.focus();
+      }
+    };
+    toggle.addEventListener('click', () => setOpen(!open));
+    close.addEventListener('click', () => setOpen(false));
+    backdrop.addEventListener('click', () => setOpen(false));
+    navigation.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('a'))
+        setOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (!open) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+      }
+      if (event.key === 'Tab') {
+        const items = Array.from(
+          navigation.querySelectorAll<HTMLElement>('a[href], button'),
+        ).filter((element) => element.getClientRects().length > 0);
+        const first = items[0];
+        const last = items.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    });
+    mobile.addEventListener('change', () => setOpen(false, false));
+    setOpen(false, false);
+  }
+</script>

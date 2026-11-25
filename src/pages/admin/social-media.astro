@@ -1,0 +1,19 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import SocialEditor from '../../components/admin/SocialEditor.astro';
+import { getAdmin } from '../../lib/admin';
+const { user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+---
+
+<AdminLayout title="Social Media" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Astro Fanblog Studio</span><h1>Social Media</h1>
+    </div>
+  </header>
+  <SocialEditor />
+</AdminLayout>

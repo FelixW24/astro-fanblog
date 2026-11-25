@@ -1,0 +1,336 @@
+/* Spielverlauf auf dem öffentlichen Spielerprofil: neben dem
+   Leistungsprofil ab Desktop, darunter ab Tablet (<= 1050px). */
+
+.player-profile-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.player-profile-overview .player-profile-chart-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.player-profile-overview--charts-only,
+.player-profile-overview--history-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.player-profile-overview--charts-only .player-profile-chart-list {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+}
+
+.player-history-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: color-mix(in srgb, var(--color-canvas) 82%, transparent);
+  border-radius: 8px;
+  box-shadow: var(--shadow-subtle);
+  backdrop-filter: blur(6px);
+}
+
+.player-history-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-fog);
+}
+
+.player-history-panel__head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+/* Eigener scrollbarer Container für den Zeitstrahl. */
+.player-history-panel__scroll {
+  max-height: min(70vh, 620px);
+  padding: 16px 18px 18px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stone) transparent;
+}
+
+.player-history-timeline {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 4px 0 4px 26px;
+  list-style: none;
+}
+
+.player-history-timeline::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 7px;
+  width: 2px;
+  background: var(--color-fog);
+}
+
+.player-history-item {
+  position: relative;
+}
+
+.player-history-marker {
+  position: absolute;
+  top: 20px;
+  left: -21px;
+  width: 12px;
+  height: 12px;
+  background: var(--color-paper);
+  border: 3px solid var(--color-stone);
+  border-radius: 50%;
+}
+
+.player-history-item--sieg .player-history-marker {
+  background: var(--color-blueprint-blue);
+  border-color: var(--color-blueprint-blue);
+}
+
+.player-history-item--niederlage .player-history-marker {
+  background: var(--color-paper);
+  border-color: var(--color-blueprint-blue-dark);
+}
+
+.player-history-item--rated .player-history-marker {
+  background: var(--color-stone);
+  border-color: var(--color-stone);
+}
+
+/* Noch nicht gespielte Spiele: neutral statt rot wie eine Niederlage. */
+.player-history-item--upcoming .player-history-marker {
+  background: var(--color-paper);
+  border-color: var(--color-blueprint-blue);
+}
+
+.player-history-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-paper);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-cards);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+/* Die ganze Karte verlinkt auf die Spieldetailseite. */
+.player-history-card:hover,
+.player-history-card:focus-visible {
+  background: var(--surface-interactive-hover);
+  border-color: var(--color-blueprint-blue);
+}
+
+/* Eine Zeile: Teams + Ergebnis links, Stadion | Datum | Uhrzeit rechts. */
+.player-history-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.player-history-teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.player-history-team {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-history-team--home {
+  text-align: right;
+  min-width: 0;
+}
+
+.player-history-team--away {
+  text-align: left;
+  min-width: 0;
+}
+
+/* Ergebnis ohne Kasten, dafür farbig nach Ausgang gehighlightet. */
+.player-history-score {
+  text-align: center;
+  min-width: 40px;
+  font-family: var(--font-suisse-mono);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.player-history-meta {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-suisse-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.player-history-meta__venue {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-history-meta__divider {
+  width: 1px;
+  height: 14px;
+  background: var(--color-fog);
+  flex: none;
+}
+
+.player-history-meta__date,
+.player-history-meta__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.player-history-meta__date svg,
+.player-history-meta__time svg {
+  flex: none;
+  opacity: 0.7;
+}
+
+.player-history-score--sieg {
+  color: var(--color-green);
+}
+
+.player-history-score--niederlage {
+  color: var(--red);
+}
+
+.player-history-score--remis {
+  color: var(--color-slate);
+}
+
+.player-history-score--upcoming {
+  color: var(--color-slate);
+}
+
+/* Note, Spielzeit und Wechsel als eine schlichte Textzeile ohne
+   eigene Kasten, damit die Karte ruhig wirkt. */
+.player-history-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 12px;
+}
+
+.player-history-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.player-history-fact svg {
+  flex: none;
+}
+
+.player-history-fact--excellent {
+  color: var(--grade-excellent);
+}
+
+.player-history-fact--good {
+  color: var(--grade-good);
+}
+
+.player-history-fact--neutral {
+  color: var(--grade-neutral);
+}
+
+.player-history-fact--warn {
+  color: var(--grade-warn);
+}
+
+.player-history-fact--poor {
+  color: var(--grade-poor);
+}
+
+.player-history-fact--bad {
+  color: var(--grade-bad);
+}
+
+.player-history-fact--none {
+  color: var(--color-slate);
+}
+
+/* Wechsel: Icon farbig, rot = ausgewechselt, grün = eingewechselt. */
+.player-history-fact--sub-off svg {
+  color: var(--red);
+}
+
+.player-history-fact--sub-in svg {
+  color: var(--color-green);
+}
+
+.player-history-note {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 12px;
+}
+
+@media (max-width: 1050px) {
+  .player-profile-overview,
+  .player-profile-overview--charts-only,
+  .player-profile-overview--history-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .player-profile-overview .player-profile-chart-list,
+  .player-profile-overview--charts-only .player-profile-chart-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .player-history-panel__scroll {
+    max-height: 480px;
+  }
+}
+
+@media (max-width: 620px) {
+  .player-history-timeline {
+    padding-left: 20px;
+  }
+
+  .player-history-marker {
+    left: -15px;
+  }
+
+  .player-history-card__row {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+
+  .player-history-meta {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}

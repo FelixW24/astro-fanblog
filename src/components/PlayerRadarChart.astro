@@ -1,0 +1,137 @@
+---
+import type { RadarMetric } from '../lib/player';
+
+interface Props {
+  title: string;
+  metrics: RadarMetric[];
+  unit?: string;
+}
+
+const { title, metrics, unit = '' } = Astro.props;
+const width = 620;
+const height = 500;
+const center = { x: 310, y: 210 };
+const radius = 136;
+const labelScale = 1.3;
+const labelLineHeight = 24;
+const maxLabelWidth = 125;
+const charWidth = 19 * 0.6;
+const wrapLabel = (label: string): string[] => {
+  const maxChars = Math.max(4, Math.floor(maxLabelWidth / charWidth));
+  const words = label
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => {
+      const chunks: string[] = [];
+      let rest = word;
+      while (rest.length > maxChars) {
+        chunks.push(rest.slice(0, maxChars));
+        rest = rest.slice(maxChars);
+      }
+      chunks.push(rest);
+      return chunks;
+    });
+  const lines: string[] = [];
+  for (const word of words) {
+    const last = lines[lines.length - 1];
+    if (last && `${last} ${word}`.length <= maxChars) {
+      lines[lines.length - 1] = `${last} ${word}`;
+    } else {
+      lines.push(word);
+    }
+  }
+  return lines;
+};
+const point = (index: number, scale = 1) => {
+  const angle = -Math.PI / 2 + (index * Math.PI * 2) / metrics.length;
+  return {
+    x: center.x + Math.cos(angle) * radius * scale,
+    y: center.y + Math.sin(angle) * radius * scale,
+  };
+};
+const polygon = (scale: number) =>
+  metrics
+    .map((_, index) => point(index, scale))
+    .map(({ x, y }) => `${x},${y}`)
+    .join(' ');
+const minScale = 0.08;
+const valueScale = (value: number) => Math.max(value / 100, minScale);
+const values = metrics
+  .map((metric, index) => point(index, valueScale(metric.value)))
+  .map(({ x, y }) => `${x},${y}`)
+  .join(' ');
+---
+
+<svg
+  class="player-radar"
+  viewBox={`0 0 ${width} ${height}`}
+  role="img"
+  aria-label={`${title}: ${metrics.map((metric) => `${metric.label} ${metric.value}${unit}`).join(', ')}`}
+>
+  {
+    [0.2, 0.4, 0.6, 0.8, 1].map((level) => (
+      <polygon class="player-radar__grid" points={polygon(level)} />
+    ))
+  }
+  {
+    metrics.map((_, index) => {
+      const outer = point(index);
+      return (
+        <line
+          class="player-radar__axis"
+          x1={center.x}
+          y1={center.y}
+          x2={outer.x}
+          y2={outer.y}
+        />
+      );
+    })
+  }
+  <polygon class="player-radar__area" points={values}></polygon>
+  {
+    metrics.map((metric, index) => {
+      const valuePoint = point(index, valueScale(metric.value));
+      const labelPoint = point(index, labelScale);
+      const lines = wrapLabel(metric.label);
+      const anchor =
+        labelPoint.x < center.x - 12
+          ? 'end'
+          : labelPoint.x > center.x + 12
+            ? 'start'
+            : 'middle';
+      return (
+        <>
+          <circle
+            class="player-radar__point"
+            cx={valuePoint.x}
+            cy={valuePoint.y}
+            r="6"
+          />
+          <text
+            class="player-radar__label"
+            x={labelPoint.x}
+            y={labelPoint.y}
+            text-anchor={anchor}
+          >
+            {lines.map((line, lineIndex) => (
+              <tspan
+                x={labelPoint.x}
+                dy={lineIndex === 0 ? undefined : labelLineHeight}
+              >
+                {line}
+              </tspan>
+            ))}
+            <tspan
+              class="player-radar__value"
+              x={labelPoint.x}
+              dy={labelLineHeight}
+            >
+              {metric.value}
+              {unit}
+            </tspan>
+          </text>
+        </>
+      );
+    })
+  }
+</svg>

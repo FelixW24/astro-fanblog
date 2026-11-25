@@ -1,0 +1,137 @@
+---
+// Copied to src/pages only by the isolated UI test server; never deployed.
+import process from 'node:process';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ReaderOnboarding from '../components/ReaderOnboarding.astro';
+import ReaderSettings from '../components/ReaderSettings.astro';
+import ReaderSettingsDialog from '../components/ReaderSettingsDialog.astro';
+import Comments from '../components/Comments.astro';
+import { parseProfileSetup } from '../lib/reader';
+
+if (!import.meta.env.DEV || process.env.READER_UI_FIXTURE !== '1')
+  return new Response(null, { status: 404 });
+const onboarding = Astro.url.searchParams.get('view') === 'onboarding';
+const error = Astro.url.searchParams.has('error');
+const editor = Astro.url.searchParams.has('editor');
+const missingProfile = Astro.url.searchParams.has('missing');
+const commentsView = Astro.url.searchParams.get('view') === 'comments';
+const ownComments = Astro.url.searchParams.has('comments')
+  ? [
+      {
+        id: 55,
+        body: 'Mein Kommentar zum Derby.\nHier möchte ich die Diskussion weiterlesen.',
+        created_at: '2026-10-15T10:00:00Z',
+        parent_id: null,
+        articles: { title: 'Ein spannendes Derby', slug: 'derby' },
+      },
+    ]
+  : [];
+if (commentsView) {
+  // Fixture data only: exercise the real paginated Comments component without a database.
+  const rows = Array.from({ length: 55 }, (_, index) => ({
+    id: index + 1,
+    article_id: 1,
+    user_id: 'c3986556-6aac-4877-b663-b0734ce0e00e',
+    parent_id: null,
+    status: 'published',
+    body: `Kommentar ${index + 1}`,
+    created_at: '2026-10-15T10:00:00Z',
+    reader_profiles: {
+      username: 'justfelix',
+      avatar: 'male',
+      avatar_url: null,
+    },
+  }));
+  Astro.locals.supabase = {
+    from: () => {
+      let result = rows;
+      const query = {
+        select: () => query,
+        eq: () => query,
+        order: () => query,
+        lt: (_key: string, id: number) => {
+          result = result.filter((row) => row.id < id);
+          return query;
+        },
+        range: (start: number, end: number) =>
+          Promise.resolve({
+            data: result.slice(start, end + 1),
+            count: result.length,
+            error: null,
+          }),
+        then: (resolve: (value: unknown) => unknown) =>
+          Promise.resolve({ count: result.length }).then(resolve),
+      };
+      return query;
+    },
+    rpc: () => ({
+      order: () => ({
+        range: () => Promise.resolve({ data: [], error: null }),
+      }),
+    }),
+  } as unknown as NonNullable<typeof Astro.locals.supabase>;
+}
+const factors = Astro.url.searchParams.has('mfa')
+  ? [{ id: 'fixture-factor', friendly_name: 'Mein Authenticator' }]
+  : [];
+---
+
+<BaseLayout title="Reader UI fixture">
+  {
+    commentsView ? (
+      <>
+        <>
+          <div style="height: 1400px">Beitragsinhalt</div>
+          <Comments articleId={1} slug="derby" />
+        </>
+      </>
+    ) : onboarding ? (
+      <ReaderOnboarding
+        values={parseProfileSetup(new FormData()).values}
+        destination="/beitraege/test-artikel#kommentare"
+        emailConfirmed={!Astro.url.searchParams.has('unconfirmed')}
+        email="felix@example.de"
+        error={error ? 'Dieser Username ist bereits vergeben.' : ''}
+      />
+    ) : (
+      <>
+        <button type="button" data-profile-open>
+          Mein Profil öffnen
+        </button>
+        <ReaderSettingsDialog
+          editorDenied={Astro.url.searchParams.has('denied')}
+        >
+          <ReaderSettings
+            slot="settings"
+            profile={
+              missingProfile
+                ? null
+                : {
+                    username: 'justfelix',
+                    avatar: Astro.url.searchParams.get('avatar') ?? 'male',
+                    avatar_url: null,
+                  }
+            }
+            details={
+              missingProfile
+                ? null
+                : {
+                    full_name: 'Max Mustermann',
+                    birth_date: '2004-04-02',
+                  }
+            }
+            email="felix@example.de"
+            editor={editor}
+            factors={factors}
+            comments={ownComments}
+            commentsCount={
+              Astro.url.searchParams.has('more') ? 25 : ownComments.length
+            }
+            commentsPage={1}
+            commentsError={Astro.url.searchParams.has('comment-error')}
+          />
+        </ReaderSettingsDialog>
+      </>
+    )
+  }
+</BaseLayout>

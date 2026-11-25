@@ -1,0 +1,145 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import MatchForm from '../../../components/admin/MatchForm.astro';
+import { getAdmin, isSameOrigin } from '../../../lib/admin';
+import { logAdminAction } from '../../../lib/audit-log';
+import { emptyMatch, parseMatchForm } from '../../../lib/matches';
+import {
+  parseBenchIds,
+  parseStarterIds,
+  parseSubstitutions,
+  syncMatchLineup,
+  validateLineupSelection,
+  type LineupSelection,
+} from '../../../lib/admin-match-lineup';
+import { importFotMobData, mergeFotMobImport } from '../../../lib/fotmob';
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+// Nur der eigene Kader (Profis und Leihen) steht als Aufstellung zur Auswahl.
+const { data: squadData, error: squadError } = await supabase
+  .from('players')
+  .select('id, name, shirt_number, position, is_injured')
+  .in('squad_status', ['first-team', 'loan-in'])
+  .order('shirt_number', { ascending: true, nullsFirst: false })
+  .order('name');
+const squad = squadData ?? [];
+let values = { ...emptyMatch };
+let lineup: LineupSelection = {
+  starterIds: [],
+  benchIds: [],
+  substitutions: [],
+};
+let fotmobUrl = '';
+let error: string | null = squadError
+  ? 'Der Kader konnte nicht geladen werden — die Aufstellungs-Auswahl fehlt. Bitte lade die Seite neu.'
+  : null;
+let importOutcome: 'ok' | 'failed' | null = null;
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const parsed = parseMatchForm(form);
+    const parsedSubs = parseSubstitutions(form);
+    values = parsed.values;
+    lineup = {
+      starterIds: parseStarterIds(form),
+      benchIds: parseBenchIds(form),
+      substitutions: parsedSubs.subs,
+    };
+    fotmobUrl = String(form.get('fotmob_url') ?? '').trim();
+    error =
+      parsed.error ??
+      parsedSubs.error ??
+      validateLineupSelection(lineup, squad);
+    if (!error && fotmobUrl) {
+      const imported = await importFotMobData(fotmobUrl, values.is_home);
+      if (imported.error) importOutcome = 'failed';
+      else if (imported.result) {
+        values = mergeFotMobImport(values, imported.result);
+        parsed.values = values;
+        parsed.payload = {
+          ...values,
+          kickoff_at: parsed.payload.kickoff_at,
+          matchcenter_url: values.matchcenter_url || null,
+        };
+        importOutcome = 'ok';
+      }
+    }
+    if (!error) {
+      const result = await supabase
+        .from('matches')
+        .insert(parsed.payload)
+        .select('id')
+        .single();
+      if (result.error || !result.data)
+        error =
+          'Das Spiel konnte nicht gespeichert werden. Bitte versuche es erneut.';
+      else {
+        const syncError = await syncMatchLineup(
+          supabase,
+          result.data.id,
+          lineup,
+          squad,
+        );
+        if (syncError) {
+          error = `Spiel angelegt, aber die Aufstellung wurde nicht übernommen: ${syncError}`;
+          Astro.response.status = 500;
+        } else {
+          logAdminAction({
+            action: 'create',
+            entity: 'match',
+            actorEmail: user.email ?? undefined,
+            detail: `opponent=${parsed.payload.opponent} kickoff=${parsed.payload.kickoff_at ?? 'nicht terminiert'}`,
+          });
+          const importParam = importOutcome ? `&import=${importOutcome}` : '';
+          return Astro.redirect(
+            `/admin/spielplan?saved=created${importParam}`,
+            303,
+          );
+        }
+      }
+    }
+    if (error) Astro.response.status = parsed.error ? 400 : 500;
+  }
+}
+---
+
+<AdminLayout title="Spiel hinzufügen" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <a class="admin-back" href="/admin/spielplan">← Spielplan</a>
+      <span class="admin-eyebrow">Mannschaft</span>
+      <h1>Spiel hinzufügen</h1>
+      <p>
+        Neues Spiel für den Spielplan anlegen — inklusive Aufstellung und
+        optionalem FotMob-Import.
+      </p>
+    </div>
+  </header>
+  {
+    error && (
+      <div
+        class="admin-alert admin-alert--error"
+        role="alert"
+        data-notification
+      >
+        {error}
+      </div>
+    )
+  }
+  <MatchForm
+    values={values}
+    squad={squad}
+    starterIds={lineup.starterIds}
+    benchIds={lineup.benchIds}
+    substitutions={lineup.substitutions}
+    fotmobUrl={fotmobUrl}
+  />
+</AdminLayout>

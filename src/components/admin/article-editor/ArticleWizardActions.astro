@@ -1,0 +1,23 @@
+---
+interface Props {
+  mode: 'create' | 'edit';
+}
+
+const { mode } = Astro.props;
+---
+
+<footer class="editor-wizard-actions">
+  <button
+    type="button"
+    class="admin-secondary-button"
+    data-wizard-previous
+    hidden>← Zurück</button
+  >
+  <span data-wizard-position>Schritt 1 von 4</span>
+  <button type="button" class="admin-primary-button" data-wizard-next
+    >Weiter zu Inhalt →</button
+  >
+  <button type="submit" class="admin-primary-button" data-wizard-submit hidden>
+    {mode === 'create' ? 'Beitrag anlegen' : 'Änderungen speichern'}
+  </button>
+</footer>

@@ -1,0 +1,481 @@
+[data-editor-panel][hidden] {
+  display: none !important;
+}
+
+.editor-subnav {
+  margin: 20px 0 0;
+}
+
+.editor-subnav .editor-tabs {
+  display: inline-flex;
+  border: 1px solid var(--color-fog);
+}
+
+.editor-subnav .editor-tabs button {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.player-editor {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.player-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 18px;
+}
+
+.player-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.player-editor-actions-note {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 12px;
+  text-align: right;
+}
+
+.admin-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.player-performance-editor .section-heading p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: var(--color-slate);
+  font-size: 13px;
+}
+
+.player-performance-fields {
+  min-width: 0;
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.player-performance-fields[hidden] {
+  display: none;
+}
+
+.player-performance-fields legend {
+  margin-bottom: 10px;
+  color: var(--color-ink-black);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.player-performance-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.player-chart-admin {
+  margin-top: 28px;
+}
+
+.player-chart-admin > .section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.player-chart-admin > .section-heading h2 {
+  margin: 4px 0;
+  font-size: 26px;
+}
+
+.player-chart-admin > .section-heading p {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 13px;
+}
+
+.player-chart-admin > .section-heading a {
+  color: var(--color-blueprint-blue);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.player-chart-admin-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.25fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.player-chart-form {
+  position: sticky;
+  top: 24px;
+}
+
+.player-chart-form button {
+  width: 100%;
+}
+
+.chart-edit-note {
+  margin: 4px 0 0;
+  color: var(--color-blueprint-blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.player-chart-form-options,
+.player-chart-control-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.player-chart-admin .player-chart-card > header small {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-slate);
+  font-family: var(--font-suisse-mono);
+  font-size: 10px;
+}
+
+.player-chart-admin .player-chart-controls {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  justify-content: flex-end;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-fog);
+}
+
+.player-chart-control-fields .field {
+  margin: 0;
+}
+
+.player-chart-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.player-history {
+  margin-top: 28px;
+}
+
+.player-history > .section-heading h2 {
+  margin: 4px 0;
+  font-size: 26px;
+}
+
+.player-history > .section-heading p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: var(--color-slate);
+  font-size: 13px;
+}
+
+.match-timeline {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  margin: 18px 0 0;
+  padding: 4px 0 4px 28px;
+  list-style: none;
+}
+
+.match-timeline::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 7px;
+  width: 2px;
+  background: var(--color-fog);
+}
+
+.match-timeline-item {
+  position: relative;
+}
+
+.match-timeline-marker {
+  position: absolute;
+  top: 23px;
+  left: -26px;
+  width: 12px;
+  height: 12px;
+  background: var(--color-paper);
+  border: 3px solid var(--color-stone);
+  border-radius: 50%;
+}
+
+.match-timeline-item--rated .match-timeline-marker {
+  background: var(--color-blueprint-blue);
+  border-color: var(--color-blueprint-blue);
+}
+
+.match-timeline-card {
+  display: grid;
+  gap: 12px;
+}
+
+.match-timeline-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.match-timeline-head time {
+  display: block;
+  color: var(--color-slate);
+  font-family: var(--font-suisse-mono);
+  font-size: 11px;
+}
+
+.match-timeline-head strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 15px;
+}
+
+.match-timeline-head small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-slate);
+  font-size: 12px;
+}
+
+.match-grade {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.match-grade--excellent {
+  color: var(--color-canvas);
+  background: var(--grade-excellent);
+  border-color: var(--grade-excellent);
+}
+
+.match-grade--good {
+  color: var(--grade-good);
+  border-color: var(--grade-good);
+}
+
+.match-grade--neutral {
+  color: var(--grade-neutral);
+}
+
+.match-grade--warn {
+  color: var(--grade-warn);
+  border-color: var(--grade-warn);
+}
+
+.match-grade--poor {
+  color: var(--grade-poor);
+  border-color: var(--grade-poor);
+}
+
+.match-grade--bad {
+  color: var(--grade-bad);
+  border-color: var(--grade-bad);
+}
+
+.match-grade--none {
+  color: var(--color-slate);
+}
+
+.match-timeline-note {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 13px;
+}
+
+.match-entry-form {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-fog);
+}
+
+.match-entry-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+/* Alle Felder des Eintrags sitzen gleich hoch in einer Linie. */
+.match-entry-fields {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: end;
+  gap: 16px;
+}
+
+.match-entry-fields .field {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.match-entry-fields input,
+.match-entry-fields select,
+.match-entry-fields .match-entry-minutes-value {
+  height: 38px;
+}
+
+/* Spielminuten werden automatisch berechnet und nur angezeigt. */
+.match-entry-fields .match-entry-minutes-value {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  color: var(--color-slate);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-inputs);
+  font-size: 14px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-entry-rating {
+  width: 110px;
+}
+
+/* Das Label „Spielminuten (berechnet)“ ist breiter als 104px und würde
+   sonst als Grid-Spalte die Box in den Abstand zur Notiz überlaufen lassen:
+   Spalte auf die Feldbreite begrenzen und das Label umbrechen. */
+.match-entry-minutes {
+  width: 104px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.match-entry-minutes > span {
+  flex-wrap: wrap;
+}
+
+.match-entry-sub {
+  width: 140px;
+}
+
+.match-entry-replacement {
+  width: 210px;
+}
+
+.match-entry-fields .match-entry-note {
+  flex: 1 1 160px;
+  min-width: 140px;
+  /* Zusätzlicher Abstand nach der kompakten Spielminuten-Anzeige. */
+  margin-left: 8px;
+}
+
+.match-entry-fields [hidden] {
+  display: none;
+}
+
+/* „Nicht nominiert“: Felder ausgegraut und nicht editierbar. */
+.match-entry-fields input:disabled,
+.match-entry-fields select:disabled {
+  color: var(--color-slate);
+  background: var(--color-canvas);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.player-admin-table td:first-child {
+  min-width: 240px;
+}
+
+.player-admin-table .admin-page-actions {
+  justify-content: center;
+}
+
+.player-edit-action,
+.player-delete-action {
+  width: 40px;
+  padding: 0;
+}
+
+.player-delete-dialog .editor-dialog__submit {
+  color: var(--color-carbon);
+  background: transparent;
+  border-color: var(--color-fog);
+}
+
+.player-delete-dialog .editor-dialog__submit:hover {
+  background: var(--color-stone);
+  border-color: var(--color-slate);
+}
+
+/* Die Bereichs-Boxen (Kader, Leihen, Nachwuchs, Abgänge) nutzen Raster und
+   Optik der Beitrags-Statboxen (.admin-stats); hier nur der aktive Zustand. */
+.player-area-nav a[aria-current='page'] {
+  border-color: var(--color-blueprint-blue);
+}
+
+.player-area-nav a[aria-current='page'] span {
+  color: var(--color-blueprint-blue);
+  font-weight: 600;
+}
+
+.player-area-nav a:focus-visible,
+.player-position-group a:focus-visible {
+  outline: 2px solid var(--color-blueprint-blue);
+  outline-offset: 3px;
+}
+
+.player-squad-sections,
+.player-position-groups {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.player-squad-sections {
+  gap: 40px;
+}
+.player-squad-heading {
+  margin-bottom: 20px;
+}
+.player-squad-heading h2 {
+  margin: 0 0 8px;
+}
+.player-squad-heading p,
+.player-group-empty {
+  color: var(--color-slate);
+}
+.player-position-group {
+  min-width: 0;
+}
+.player-position-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.player-position-heading h3 {
+  margin: 0;
+}
+.player-group-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--color-fog);
+  border-radius: 8px;
+}

@@ -1,0 +1,64 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ArticleForm from '../../../components/admin/ArticleForm.astro';
+import { articleToFormValues, getAdmin } from '../../../lib/admin';
+import { saveArticleFromRequest } from '../../../lib/admin-article-save';
+import { dispatchNewArticleNotification } from '../../../lib/notifications';
+
+const id = Number(Astro.params.id);
+if (!Number.isSafeInteger(id) || id < 1) return Astro.redirect('/404');
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+const { data: article } = await supabase
+  .from('articles')
+  .select('*')
+  .eq('id', id)
+  .maybeSingle();
+if (!article) return Astro.redirect('/404');
+
+let values = articleToFormValues(article);
+let error: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const result = await saveArticleFromRequest({
+    request: Astro.request,
+    supabase,
+    mode: 'edit',
+    initialValues: values,
+    articleId: id,
+    actorEmail: user.email ?? undefined,
+  });
+  values = result.values;
+  error = result.error;
+  if (result.status) Astro.response.status = result.status;
+  if (result.redirectTo) {
+    // Übergang von Entwurf/Archiv nach veröffentlicht: Abonnenten informieren.
+    if (result.publishedSlug)
+      await dispatchNewArticleNotification({ slug: result.publishedSlug });
+    return Astro.redirect(result.redirectTo, 303);
+  }
+}
+---
+
+<AdminLayout title="Beitrag bearbeiten" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <a class="admin-back" href="/admin">← Beiträge</a><span
+        class="admin-eyebrow">Beitrag #{id}</span
+      ><h1>Bearbeiten</h1><p>
+        Zuletzt geändert am {
+          new Intl.DateTimeFormat('de-DE', {
+            dateStyle: 'long',
+            timeStyle: 'short',
+          }).format(new Date(article.updated_at))
+        }
+      </p>
+    </div>
+  </header>
+  <ArticleForm {values} {error} mode="edit" articleId={id} />
+</AdminLayout>

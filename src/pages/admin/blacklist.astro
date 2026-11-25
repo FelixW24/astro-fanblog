@@ -1,0 +1,273 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAdmin, isSameOrigin } from '../../lib/admin';
+import { moderationPage } from '../../lib/moderation';
+import {
+  parseBlocklistTerm,
+  blocklistSearchPattern,
+} from '../../lib/blocklist';
+import { logAdminAction } from '../../lib/audit-log';
+
+const { supabase, user } = await getAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+const search = (Astro.url.searchParams.get('suche') ?? '')
+  .normalize('NFC')
+  .trim()
+  .slice(0, 120);
+const page = moderationPage(Astro.url.searchParams.get('seite'));
+const size = 50;
+let error = '';
+let termValue = '';
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const action = form.get('action');
+    if (action === 'add-word') {
+      const term = parseBlocklistTerm(form.get('term'));
+      termValue =
+        typeof form.get('term') === 'string' ? String(form.get('term')) : '';
+      if (!term) {
+        error =
+          'Bitte gib ein Wort oder eine Wortgruppe mit höchstens 120 Zeichen ein.';
+      } else {
+        const result = await supabase
+          .from('comment_blocklist')
+          .insert({ term });
+        if (result.error)
+          error =
+            result.error.code === '23505'
+              ? 'Dieser Eintrag ist bereits vorhanden.'
+              : 'Der Eintrag konnte nicht gespeichert werden.';
+        else
+          logAdminAction({
+            action: 'create',
+            entity: 'blocklist_term',
+            actorEmail: user.email ?? undefined,
+            detail: `term=${term}`,
+          });
+      }
+    } else if (action === 'remove-word') {
+      const id = Number(form.get('id'));
+      if (!Number.isSafeInteger(id) || id <= 0) error = 'Ungültiger Eintrag.';
+      else {
+        const result = await supabase
+          .from('comment_blocklist')
+          .delete()
+          .eq('id', id)
+          .select('id');
+        if (result.error) error = 'Der Eintrag konnte nicht entfernt werden.';
+        else if (!result.data?.length)
+          error = 'Dieser Eintrag wurde bereits entfernt.';
+        else
+          logAdminAction({
+            action: 'delete',
+            entity: 'blocklist_term',
+            entityId: id,
+            actorEmail: user.email ?? undefined,
+          });
+      }
+    } else error = 'Ungültige Aktion.';
+    if (!error) {
+      const params = new URLSearchParams({ gespeichert: '1' });
+      if (action === 'remove-word') {
+        if (search) params.set('suche', search);
+        params.set('seite', String(page));
+      }
+      return Astro.redirect(`/admin/blacklist?${params}`, 303);
+    }
+  }
+}
+let query = supabase
+  .from('comment_blocklist')
+  .select('id, term', { count: 'exact' });
+if (search)
+  query = query.filter('term', 'imatch', blocklistSearchPattern(search));
+const words = await query
+  .order('term')
+  .order('id')
+  .range((page - 1) * size, page * size - 1);
+const pageLink = (next: number) => {
+  const params = new URLSearchParams({ seite: String(next) });
+  if (search) params.set('suche', search);
+  return `/admin/blacklist?${params}`;
+};
+---
+
+<AdminLayout title="Blacklist-Wörter" userEmail={user.email ?? 'Redaktion'}>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Community · Wortfilter</span><h1>
+        Blacklist-Wörter
+      </h1>
+      <p>
+        Gesperrte Wörter und Wortgruppen für die Kommentarmoderation verwalten.
+      </p>
+    </div>
+  </header>
+  {
+    error && (
+      <p role="alert" class="admin-alert admin-alert--error">
+        {error}
+      </p>
+    )
+  }
+  {
+    !error && Astro.url.searchParams.has('gespeichert') && (
+      <p role="status" class="admin-alert">
+        Änderung gespeichert.
+      </p>
+    )
+  }
+  <section class="word-section" aria-labelledby="effect-title">
+    <h2 id="effect-title">So wirkt die Wortliste</h2>
+    <p>
+      Treffer in neuen Kommentaren und Antworten werden <a
+        href="/admin/moderation">zur Prüfung zurückgehalten</a
+      >. Groß- und Kleinschreibung spielt keine Rolle; auch Wortbestandteile
+      werden erkannt. Einträge sind wörtlicher Text, keine regulären Ausdrücke.
+      Bestehende Kommentare bleiben unverändert.
+    </p>
+    <p>
+      Die Ausgangsliste umfasst alle 26 Sprach- und Regionaldateien der
+      <a href="https://github.com/Hesham-Elbadawi/list-of-banned-words"
+        >verlinkten Sammlung</a
+      >. Kurze oder mehrdeutige Begriffe können harmlose Kommentare treffen.
+      Prüfe die Einträge und entferne unpassende Wörter.
+    </p>
+  </section>
+  <section class="word-section" aria-labelledby="add-title">
+    <h2 id="add-title">Wort hinzufügen</h2>
+    <form method="post" class="word-form">
+      <label class="field"
+        ><span
+          >Wort oder Wortgruppe<span class="required-marker" aria-hidden="true"
+          ></span></span
+        >
+        <input name="term" required maxlength="120" value={termValue} /></label
+      >
+      <button
+        class="admin-primary-button"
+        type="submit"
+        name="action"
+        value="add-word">Zur Wortliste hinzufügen</button
+      >
+    </form>
+  </section>
+  <section class="word-section" aria-labelledby="list-title">
+    <h2 id="list-title">
+      {search ? 'Suchergebnisse' : 'Wortliste'}{
+        !words.error && ` (${words.count ?? 0})`
+      }
+    </h2>
+    <form
+      method="get"
+      class="word-form"
+      role="search"
+      aria-label="Wortliste durchsuchen"
+    >
+      <label class="field"
+        ><span>Wörter suchen</span><input
+          type="search"
+          name="suche"
+          maxlength="120"
+          value={search}
+        /></label
+      >
+      <div class="word-actions">
+        <button class="admin-primary-button" type="submit">Suchen</button>{
+          search && <a href="/admin/blacklist">Suche zurücksetzen</a>
+        }
+      </div>
+    </form>
+    {
+      words.error ? (
+        <p role="alert">
+          Die Wortliste konnte nicht geladen werden. Bitte lade die Seite neu.
+        </p>
+      ) : (
+        <>
+          {!words.data?.length && (
+            <p>
+              {search
+                ? 'Keine passenden Einträge auf dieser Seite.'
+                : 'Keine Einträge auf dieser Seite.'}
+            </p>
+          )}
+          <ul class="blocked-words">
+            {words.data?.map((word) => (
+              <li>
+                <bdi>{word.term}</bdi>
+                <form method="post">
+                  <input type="hidden" name="id" value={word.id} />
+                  <button
+                    class="admin-danger-button"
+                    type="submit"
+                    name="action"
+                    value="remove-word"
+                    aria-label={`Eintrag „${word.term}“ entfernen`}
+                  >
+                    Entfernen
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+          <nav class="word-actions" aria-label="Seiten der Wortliste">
+            {page > 1 && <a href={pageLink(page - 1)}>Vorherige Einträge</a>}
+            <span>Seite {page}</span>
+            {(words.count ?? 0) > page * size && (
+              <a href={pageLink(page + 1)}>Weitere Einträge</a>
+            )}
+          </nav>
+        </>
+      )
+    }
+  </section>
+</AdminLayout>
+<style>
+  .word-section {
+    margin-block: 32px;
+  }
+  .word-section h2 {
+    margin-bottom: 16px;
+  }
+  .word-section p {
+    margin-block: 12px;
+    max-width: 80ch;
+  }
+  .word-form {
+    display: grid;
+    gap: 12px;
+    max-width: 600px;
+    margin-block: 16px;
+  }
+  .blocked-words {
+    padding: 0;
+    list-style: none;
+  }
+  .blocked-words li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-fog);
+  }
+  .blocked-words bdi {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  .blocked-words form {
+    flex-shrink: 0;
+  }
+  .word-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+</style>

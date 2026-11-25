@@ -1,0 +1,144 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { createRequestClient } from '../lib/supabase';
+import { isAdmin, isSameOrigin } from '../lib/admin';
+import { safeReturnPath } from '../lib/reader';
+import { authEmailHash, logAuthFailure } from '../lib/auth-security';
+import SessionNotice from '../components/SessionNotice.astro';
+import PasswordField from '../components/PasswordField.astro';
+import Icon from '../components/Icon.astro';
+import '../styles/public/readers.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const next = safeReturnPath(Astro.url.searchParams.get('weiter'));
+let error = '';
+let email = '';
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    email = String(form.get('email') ?? '').trim();
+    if (form.get('session_acknowledged') !== 'on')
+      error =
+        'Bitte bestätige, dass du die Datenschutzhinweise zur Kenntnis genommen hast.';
+    else {
+      const supabase = createRequestClient(Astro);
+      const { data, error: authError } = await supabase.auth.signInWithPassword(
+        {
+          email,
+          password: String(form.get('password') ?? ''),
+        },
+      );
+      if (authError) {
+        logAuthFailure(
+          'login_failed',
+          { status: authError.status, code: authError.code },
+          {
+            address: Astro.clientAddress,
+            emailHash: authEmailHash(email),
+          },
+        );
+        error =
+          'Anmeldung fehlgeschlagen. Prüfe E-Mail, Passwort und die Bestätigung deiner E-Mail-Adresse.';
+      } else if (data.user) {
+        const { data: profile } = await supabase
+          .from('reader_profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+        if (!profile && !isAdmin(data.user))
+          return Astro.redirect(
+            `/profil/einrichten?weiter=${encodeURIComponent(next)}`,
+            303,
+          );
+        return Astro.redirect(next, 303);
+      }
+    }
+  }
+}
+---
+
+<BaseLayout title="Anmelden | Astro Fanblog">
+  <div class="reader-auth-stage">
+    <section
+      class="reader-panel reader-panel--auth shell"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reader-auth-title"
+    >
+      <p class="overline">Deine Stimme im Fanblog</p>
+      <PageHeading id="reader-auth-title">Anmelden</PageHeading>
+      <p>Schreibe Kommentare, antworte anderen Fans und bewerte Kommentare.</p>
+      {
+        Astro.url.searchParams.get('konto') === 'geloescht' && (
+          <p role="status" data-notification>
+            Dein Konto wurde endgültig gelöscht.
+          </p>
+        )
+      }
+      {
+        Astro.url.searchParams.has('bestaetigt') && (
+          <p role="status" data-notification>
+            Deine E-Mail-Adresse ist bestätigt. Du kannst dich anmelden.
+          </p>
+        )
+      }
+      {
+        Astro.url.searchParams.has('passwort') && (
+          <p role="status" data-notification>
+            Dein Passwort wurde geändert. Du kannst dich jetzt anmelden.
+          </p>
+        )
+      }
+      {
+        error && (
+          <p role="alert" data-notification>
+            {error}
+          </p>
+        )
+      }
+      <form method="post" class="reader-form reader-form--auth">
+        <p class="required-fields-note">
+          Mit * gekennzeichnete Felder sind Pflichtfelder.
+        </p>
+        <label>
+          <span
+            >E-Mail-Adresse<span class="required-marker" aria-hidden="true"
+            ></span></span
+          >
+          <span class="reader-input-control">
+            <Icon name="mail" size={17} class="reader-input-icon" />
+            <input
+              type="email"
+              name="email"
+              value={email}
+              autocomplete="username"
+              required
+            />
+          </span>
+        </label>
+        <PasswordField
+          id="login-password"
+          name="password"
+          label="Passwort"
+          autocomplete="current-password"
+        />
+        <a class="reader-form__secondary-link" href="/passwort-vergessen">
+          Passwort vergessen?
+        </a>
+        <SessionNotice />
+        <button type="submit">Anmelden</button>
+      </form>
+      <p class="reader-auth-switch">
+        <span>Noch kein Konto?</span>
+        <a href={`/registrieren?weiter=${encodeURIComponent(next)}`}
+          >Konto erstellen</a
+        >
+      </p>
+    </section>
+  </div>
+</BaseLayout>

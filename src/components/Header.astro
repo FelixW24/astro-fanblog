@@ -1,0 +1,130 @@
+---
+import { categories } from '../lib/content';
+import MobileNavigation from './MobileNavigation.astro';
+import EditorialNav from './admin/EditorialNav.astro';
+import Icon from './Icon.astro';
+import BrandIcon from './BrandIcon.astro';
+import ReaderAccount from './ReaderAccount.astro';
+
+interface Props {
+  /** true in der Redaktion: Header-Menü ist die Redaktionsnavigation. */
+  workspace?: boolean;
+}
+
+const { workspace = false } = Astro.props;
+const pathname = Astro.url.pathname;
+const searchQuery = Astro.url.searchParams.get('suche') ?? '';
+const categoryIcons = {
+  'spielbericht-analyse': 'report',
+  news: 'news',
+  'pk-zusammenfassung': 'press',
+  transfer: 'transfer',
+  weiteres: 'more',
+} as const;
+const primaryLinks = [
+  { href: '/beitraege', label: 'Beiträge', icon: 'article' as const },
+  { href: '/kader', label: 'Kader', icon: 'users' as const },
+  {
+    href: '/leihspieler',
+    label: 'Leihspieler',
+    icon: 'external-link' as const,
+  },
+  { href: '/spielplan', label: 'Spielplan', icon: 'calendar' as const },
+];
+---
+
+<header class="site-header">
+  <div class="header-main">
+    <a class="brand" href="/" aria-label="Astro Fanblog Startseite">
+      <BrandIcon class="brand-mark" />
+      <span class="brand-copy"
+        ><strong>Astro Fanblog</strong><small>FC-Fanblog</small></span
+      >
+    </a>
+    <div class="header-navigation" id="public-navigation">
+      <div class="mobile-navigation-heading">
+        <a class="brand" href="/" aria-label="Astro Fanblog Startseite">
+          <BrandIcon class="brand-mark" />
+          <span class="brand-copy"><strong>Astro Fanblog</strong></span>
+        </a>
+        <button
+          class="mobile-navigation-close"
+          type="button"
+          data-mobile-menu-close
+          aria-label="Menü schließen">×</button
+        >
+      </div>
+      <nav
+        class:list={['primary-nav', { 'primary-nav--workspace': workspace }]}
+        aria-label={workspace ? 'Redaktionsnavigation' : 'Hauptnavigation'}
+      >
+        {
+          workspace ? (
+            <EditorialNav />
+          ) : (
+            <>
+              {primaryLinks.map((link) => (
+                <a
+                  href={link.href}
+                  aria-current={
+                    pathname.startsWith(link.href) ? 'page' : undefined
+                  }
+                >
+                  <>
+                    <span class="nav-icon" aria-hidden="true">
+                      <Icon name={link.icon} />
+                    </span>
+                    <span class="nav-label">{link.label}</span>
+                  </>
+                </a>
+              ))}
+              {categories.map((category) => (
+                <a
+                  href={`/kategorie/${category.slug}`}
+                  aria-label={category.label}
+                  aria-current={
+                    pathname === `/kategorie/${category.slug}`
+                      ? 'page'
+                      : undefined
+                  }
+                >
+                  <>
+                    <span class="nav-icon" aria-hidden="true">
+                      <Icon name={categoryIcons[category.slug]} size={16} />
+                    </span>
+                    <span class="nav-label">{category.label}</span>
+                  </>
+                </a>
+              ))}
+            </>
+          )
+        }
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-account">
+          <ReaderAccount />
+        </div>
+      </div>
+    </div>
+    <form class="header-search" action="/beitraege" method="get" role="search">
+      <label class="visually-hidden" for="header-search"
+        >Beiträge durchsuchen</label
+      >
+      <input
+        id="header-search"
+        type="search"
+        name="suche"
+        value={searchQuery}
+        placeholder="Suche..."
+        autocomplete="off"
+        maxlength="200"
+      />
+      <button type="submit" aria-label="Suche starten">
+        <Icon name="search" size={14} />
+      </button>
+    </form>
+    <div class="mobile-header-actions">
+      <MobileNavigation />
+    </div>
+  </div>
+</header>

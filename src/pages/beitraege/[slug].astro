@@ -1,0 +1,238 @@
+---
+import { articleStructuredData } from '../../lib/structured-data';
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleContent from '../../components/ArticleContent.astro';
+import Icon from '../../components/Icon.astro';
+import ReadingProgress from '../../components/ReadingProgress.astro';
+import { articleCover } from '../../lib/article-cover';
+import { formatDate, getArticle, type Article } from '../../lib/content';
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect('/beitraege');
+let article;
+try {
+  article = await getArticle(slug);
+} catch {
+  return Astro.redirect('/beitraege');
+}
+if (!article) return Astro.redirect('/404');
+// Content-Negotiation für Agenten: Bei Accept: text/markdown liefert der
+// Beitrag sich als dichten Markdown-Text (Inhalt ist bereits Markdown).
+if ((Astro.request.headers.get('accept') ?? '').includes('text/markdown')) {
+  const canonicalUrl = new URL(Astro.url.pathname, Astro.url.origin).href;
+  const sourceLinks = article.source_urls.filter((value) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+      return false;
+    }
+  });
+  return new Response(articleMarkdown(article, canonicalUrl, sourceLinks), {
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
+    },
+  });
+}
+
+function articleMarkdown(
+  article: Article,
+  canonicalUrl: string,
+  sourceLinks: string[],
+): string {
+  return [
+    `# ${article.title}`,
+    '',
+    `*${article.author} · ${article.published_at ? formatDate(article.published_at) : 'Unveröffentlicht'}*`,
+    '',
+    article.excerpt,
+    '',
+    article.content,
+    ...(sourceLinks.length
+      ? ['', '## Quellen', ...sourceLinks.map((url) => `- ${url}`)]
+      : []),
+    '',
+    `Quelle: ${canonicalUrl}`,
+    '',
+  ].join('\n');
+}
+// Serverseitig erkannter Datensparmodus (Cookie/Save-Data-Header) liefert
+// die Kompakt-Hero-Variante direkt als src aus; sonst rendern wir die volle
+// Variante. Die jeweils andere Variante liegt als data-Attribut vor und wird
+// clientseitig getauscht (scripts/data-saver-images.ts). Meta/OG-Bild bleiben
+// die volle Variante.
+const dataSaver = Astro.locals.dataSaver === true;
+const coverFull = articleCover(article, { compact: false, hero: true });
+const coverCompact = articleCover(article, { compact: true, hero: true });
+const cover = dataSaver ? coverCompact : coverFull;
+const coverCompactDiffers =
+  coverFull !== null && coverCompact !== null && coverCompact.src !== coverFull.src;
+
+const safeSources = article.source_urls.flatMap((value) => {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return [];
+    return [{ href: url.href, label: url.hostname.replace(/^www\./, '') }];
+  } catch {
+    return [];
+  }
+});
+---
+
+<BaseLayout
+  title={`${article.seo_title ?? article.title} | Astro Fanblog`}
+  description={article.seo_description ?? article.excerpt}
+  image={coverFull?.src ?? undefined}
+  type="article"
+  structuredData={articleStructuredData(
+    article,
+    new URL(Astro.url.pathname, Astro.url.origin).href,
+    coverFull?.src ?? '/images/article-default-1200.webp',
+    safeSources.map((source) => source.href),
+  )}
+>
+  <ReadingProgress />
+  <nav class="shell article-breadcrumb" aria-label="Beitragsnavigation">
+    <a href="/beitraege">← Alle Beiträge</a>
+    <span>Astro Fanblog · Redaktion</span>
+  </nav>
+  <article
+    class="article-detail shell"
+    data-view-tracking
+    data-article-id={article.id}
+  >
+    <header class={`article-hero visual-${article.category}`}>
+      <div class="shell article-hero-inner">
+        <div class="article-heading">
+          <PageHeading>{article.title.replace(/\.$/, '')}</PageHeading>
+          <p>{article.excerpt}</p>
+          <div class="article-byline">
+            <span>Von <strong>{article.author}</strong></span>
+            <time datetime={article.published_at ?? undefined}
+              >{formatDate(article.published_at)}</time
+            >
+            <span
+              class="reading-time"
+              aria-label={`${article.read_minutes} Min. Lesezeit`}
+            >
+              <Icon name="hourglass" size={13} />
+              {article.read_minutes} Min.
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+    {
+      cover && (
+        <figure class="article-cover shell">
+          <img
+            src={cover.src}
+            data-compact-src={
+              coverCompactDiffers && coverCompact ? coverCompact.src : undefined
+            }
+            data-compact-srcset={
+              coverCompactDiffers && coverCompact?.isDefault
+                ? coverCompact.srcset
+                : undefined
+            }
+            data-full-src={
+              coverCompactDiffers && dataSaver && coverFull
+                ? coverFull.src
+                : undefined
+            }
+            data-full-srcset={
+              coverCompactDiffers && dataSaver && coverFull?.isDefault
+                ? coverFull.srcset
+                : undefined
+            }
+            srcset={cover.isDefault ? cover.srcset : undefined}
+            sizes={cover.isDefault
+              ? '(max-width: 1200px) 100vw, 1200px'
+              : undefined}
+            width={cover.isDefault ? cover.width : undefined}
+            height={cover.isDefault ? cover.height : undefined}
+            alt={cover.alt}
+            decoding="async"
+          />
+          {!cover.isDefault && article.cover_image_alt && (
+            <figcaption>{article.cover_image_alt}</figcaption>
+          )}
+        </figure>
+      )
+    }
+    <div class="article-body shell">
+      <div class="prose">
+        <ArticleContent content={article.content} />
+        {
+          article.tags.length > 0 && (
+            <ul class="article-tags" aria-label="Schlagwörter">
+              {article.tags.map((tag) => (
+                <li>{tag}</li>
+              ))}
+            </ul>
+          )
+        }
+        {
+          safeSources.length > 0 && (
+            <aside class="article-sources">
+              <h2>Quellen</h2>
+              <ol>
+                {safeSources.map((source) => (
+                  <li>
+                    <a
+                      href={source.href}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      {source.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </aside>
+          )
+        }
+      </div>
+    </div>
+    <div id="kommentare-slot" data-kommentare-slug={article.slug}>
+      <noscript>
+        <p class="shell">
+          <a href={`/kommentare/${article.slug}#kommentare`}
+            >Kommentare auf eigener Seite lesen</a
+          >
+        </p>
+      </noscript>
+    </div>
+    <script>
+      // Kommentarbereich als serverseitige Insel nachladen: Die Artikelseite
+      // bleibt statisch, das Fragment liefert Session-, Vote- und
+      // Moderations-Zustand serverseitig. Per innerHTML injizierte Skripte
+      // laufen nicht, deshalb wird die Insel danach manuell verdrahtet.
+      import { wireReaderComments } from '../../scripts/reader-comments';
+      const slot = document.getElementById('kommentare-slot');
+      const kommentareSlug = slot?.dataset.kommentareSlug;
+      if (slot && kommentareSlug) {
+        const query = window.location.search;
+        fetch(
+          `/kommentare/${encodeURIComponent(kommentareSlug)}?fragment=1${query ? `&${query.slice(1)}` : ''}`,
+        )
+          .then((response) => (response.ok ? response.text() : ''))
+          .then((html) => {
+            if (html) {
+              slot.innerHTML = html;
+              wireReaderComments(slot);
+            }
+          })
+          .catch(() => {});
+      }
+    </script>
+    <script>
+      import { initArticleViewTracking } from '../../scripts/view-tracking';
+      const trackingHost = document.querySelector('[data-view-tracking]');
+      const articleId = Number(trackingHost?.getAttribute('data-article-id'));
+      if (Number.isSafeInteger(articleId) && articleId > 0)
+        initArticleViewTracking(articleId);
+    </script>
+  </article>
+</BaseLayout>

@@ -1,0 +1,106 @@
+---
+import Icon from './Icon.astro';
+import '../styles/public/section-timeline.css';
+
+interface Item {
+  slug: string;
+  label: string;
+  icon:
+    | 'shirt'
+    | 'shield'
+    | 'users'
+    | 'boot'
+    | 'external-link'
+    | 'arrow-left'
+    | 'report';
+  count?: number;
+  /** false: Eintrag erscheint nicht in der Timeline-Rail rechts (nur Tab-Navigation). */
+  rail?: boolean;
+}
+
+interface Props {
+  ariaLabel: string;
+  items: Item[];
+  embedded?: boolean;
+}
+
+const { ariaLabel, items, embedded = false } = Astro.props;
+---
+
+<div
+  class={embedded
+    ? 'squad-navigation squad-navigation--embedded'
+    : 'shell squad-navigation'}
+  data-squad-nav
+>
+  <nav aria-label={ariaLabel}>
+    {
+      items.map((item, index) => (
+        <a
+          href={`#${item.slug}`}
+          data-squad-target={item.slug}
+          aria-current={index === 0 ? 'true' : undefined}
+        >
+          <Icon name={item.icon} size={18} />
+          {item.label} {item.count != null && <span>({item.count})</span>}
+        </a>
+      ))
+    }
+  </nav>
+</div>
+<aside
+  class="squad-scroll-indicator"
+  data-squad-indicator
+  aria-label={`${ariaLabel} als Timeline`}
+>
+  <span class="squad-scroll-indicator__track">
+    <span class="squad-scroll-indicator__progress"></span>
+  </span>
+  {
+    items
+      .filter((item) => item.rail !== false)
+      .map((item, index) => (
+        <a
+          class="squad-scroll-indicator__item"
+          href={`#${item.slug}`}
+          data-indicator-target={item.slug}
+          data-squad-target={item.slug}
+          aria-current={index === 0 ? 'true' : undefined}
+        >
+          <span class="squad-scroll-indicator__label">{item.label}</span>
+          <span class="squad-scroll-indicator__dot" />
+        </a>
+      ))
+  }
+</aside>
+
+<script>
+  import { initSquadScroll } from '../scripts/squad-scroll';
+
+  let cleanup: (() => void) | undefined;
+  let activeRoot: Element | null = null;
+
+  function mountSectionTimeline() {
+    const root = document.querySelector('[data-squad-container]');
+    if (!root || root === activeRoot) return;
+    cleanup?.();
+    activeRoot = root;
+    cleanup = initSquadScroll();
+  }
+
+  function unmountSectionTimeline() {
+    cleanup?.();
+    cleanup = undefined;
+    activeRoot = null;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mountSectionTimeline, {
+      once: true,
+    });
+  } else {
+    mountSectionTimeline();
+  }
+  document.addEventListener('astro:page-load', mountSectionTimeline);
+  document.addEventListener('astro:before-swap', unmountSectionTimeline);
+</script>

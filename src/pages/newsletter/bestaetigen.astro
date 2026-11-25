@@ -1,0 +1,97 @@
+---
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  newsletterSubscriberId,
+  validNewsletterToken,
+} from '../../lib/newsletter';
+import { createAdminAuthClient } from '../../lib/supabase';
+
+// Double-Opt-in: Der signierte Link aus der Bestätigungsmail aktiviert das
+// Abonnement ohne Anmeldung (ein Klick genügt). Der Token enthält ein
+// Ablaufdatum (7 Tage) und wird nach erfolgreicher Bestätigung aus der URL
+// entfernt, damit der Link nicht versehentlich weitergegeben werden kann.
+const token = Astro.url.searchParams.get('token') ?? '';
+const subscriberId = newsletterSubscriberId(token);
+
+let done = false;
+let email = '';
+let invalidToken = true;
+if (subscriberId && validNewsletterToken(token, subscriberId, 'confirm')) {
+  invalidToken = false;
+  try {
+    const admin = createAdminAuthClient();
+    const { data: subscriber, error: lookupError } = await admin
+      .from('newsletter_subscribers')
+      .select('id, email, status')
+      .eq('id', subscriberId)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (subscriber) {
+      email = subscriber.email;
+      if (subscriber.status !== 'active') {
+        const { error } = await admin
+          .from('newsletter_subscribers')
+          .update({
+            status: 'active',
+            confirmed_at: new Date().toISOString(),
+            unsubscribed_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', subscriberId);
+        if (error) throw error;
+      }
+      done = true;
+    }
+  } catch (error) {
+    console.error('newsletter.confirm_failed', error);
+  }
+}
+---
+
+<BaseLayout title="Newsletter bestätigt | Astro Fanblog">
+  <section class="not-found shell" data-strip-token={done ? '' : undefined}>
+    {
+      done ? (
+        <>
+          <PageHeading>Newsletter bestätigt</PageHeading>
+          <p>
+            Danke! Deine Anmeldung für den Fanblog-Newsletter ist jetzt aktiv
+            {email ? ` (${email})` : ''}.
+          </p>
+          <p>
+            Du erhältst ab sofort unseren Newsletter per E-Mail. Abmelden kannst
+            du dich jederzeit mit einem Klick über den Link in jeder E-Mail.
+          </p>
+          <a class="button" href="/">
+            Zur Startseite
+          </a>
+        </>
+      ) : (
+        <>
+          <PageHeading>Bestätigung nicht möglich</PageHeading>
+          <p>
+            {invalidToken
+              ? 'Dieser Bestätigungslink ist ungültig oder abgelaufen.'
+              : 'Bei der Bestätigung ist ein Fehler aufgetreten. Bitte versuche es später erneut.'}
+          </p>
+          <p>
+            Du kannst dich jederzeit über das Willkommens-Modal auf der
+            Startseite erneut anmelden.
+          </p>
+          <a class="button" href="/">
+            Zur Startseite
+          </a>
+        </>
+      )
+    }
+  </section>
+</BaseLayout>
+
+<script>
+  // Nach erfolgreicher Bestätigung den Token aus der URL entfernen, damit
+  // der einmalige Link nicht über die Adressleiste geteilt werden kann.
+  if (document.querySelector('[data-strip-token]')) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+</script>

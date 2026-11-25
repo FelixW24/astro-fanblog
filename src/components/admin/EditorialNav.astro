@@ -1,0 +1,141 @@
+---
+import Icon from '../Icon.astro';
+
+// Wird im Header gerendert, wenn BaseLayout workspace=true bekommt, und
+// ersetzt dort das Blog-Menü (siehe Header.astro).
+const pathname = Astro.url.pathname;
+const links = [
+  {
+    href: '/admin/social-media',
+    label: 'Social Media',
+    icon: 'article' as const,
+    active: pathname.startsWith('/admin/social-media'),
+  },
+  {
+    href: '/admin',
+    label: 'Beiträge',
+    icon: 'article' as const,
+    active:
+      pathname === '/admin' ||
+      (pathname.startsWith('/admin/beitraege/') &&
+        pathname !== '/admin/beitraege/neu'),
+  },
+  {
+    href: '/admin/spieler',
+    label: 'Spielerprofile',
+    icon: 'users' as const,
+    active: pathname.startsWith('/admin/spieler'),
+  },
+  {
+    href: '/admin/spielplan',
+    label: 'Spielplan',
+    icon: 'calendar' as const,
+    active: pathname.startsWith('/admin/spielplan'),
+  },
+];
+const settingsGroup = {
+  label: 'Einstellungen',
+  icon: 'shield' as const,
+  active:
+    pathname === '/admin/blacklist' ||
+    pathname === '/admin/benutzernamen' ||
+    pathname.startsWith('/admin/benutzer') ||
+    pathname.startsWith('/admin/moderation') ||
+    pathname.startsWith('/admin/newsletter') ||
+    pathname.startsWith('/admin/tracking'),
+  children: [
+    {
+      href: '/admin/benutzer',
+      label: 'Benutzer',
+      group: 'Community',
+      active: pathname.startsWith('/admin/benutzer'),
+    },
+    {
+      href: '/admin/newsletter',
+      label: 'Newsletter',
+      group: 'Community',
+      active: pathname.startsWith('/admin/newsletter'),
+    },
+    {
+      href: '/admin/blacklist',
+      label: 'Blacklist-Wörter',
+      group: 'Sicherheit',
+      active: pathname === '/admin/blacklist',
+    },
+    {
+      href: '/admin/benutzernamen',
+      label: 'Reservierte Namen',
+      group: 'Sicherheit',
+      active: pathname === '/admin/benutzernamen',
+    },
+    {
+      href: '/admin/moderation',
+      label: 'Moderation',
+      group: 'Sicherheit',
+      active: pathname.startsWith('/admin/moderation'),
+    },
+    {
+      href: '/admin/tracking',
+      label: 'Tracking',
+      group: 'Analyse',
+      active: pathname.startsWith('/admin/tracking'),
+    },
+  ],
+};
+// Untermenü nach Gruppen-Label aufteilen (Reihenfolge der Ersterwähnung).
+const settingsSections = [
+  ...new Set(settingsGroup.children.map((child) => child.group)),
+].map((group) => ({
+  group,
+  children: settingsGroup.children.filter((child) => child.group === group),
+}));
+---
+
+{
+  links.map((link) => (
+    <a href={link.href} aria-current={link.active ? 'page' : undefined}>
+      <>
+        <span class="nav-icon" aria-hidden="true">
+          <Icon name={link.icon} />
+        </span>
+        <span class="nav-label">{link.label}</span>
+      </>
+    </a>
+  ))
+}
+<details
+  class:list={['editorial-tabs__group', { 'is-active': settingsGroup.active }]}
+>
+  <summary
+    role="button"
+    aria-current={settingsGroup.active ? 'page' : undefined}
+  >
+    <span class="nav-icon" aria-hidden="true">
+      <Icon name={settingsGroup.icon} />
+    </span>
+    <span class="nav-label">{settingsGroup.label}</span>
+    <Icon name="chevron-down" size={14} class="editorial-tabs__chevron" />
+  </summary>
+  <div class="editorial-tabs__submenu" role="group" aria-label="Einstellungen">
+    {
+      settingsSections.map((section) => (
+        <>
+          <span class="editorial-tabs__submenu-group">{section.group}</span>
+          {section.children.map((child) => (
+            <a
+              href={child.href}
+              aria-current={child.active ? 'page' : undefined}
+            >
+              {child.label}
+            </a>
+          ))}
+        </>
+      ))
+    }
+  </div>
+</details>
+
+<script>
+  import { initAdminSettingsDropdown } from '../../scripts/admin-settings-dropdown';
+  initAdminSettingsDropdown();
+</script>

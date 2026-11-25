@@ -1,0 +1,450 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getSiteAdmin, isSameOrigin } from '../../../lib/admin';
+import { createAdminAuthClient } from '../../../lib/supabase';
+import { readerAvatarPublicUrl } from '../../../lib/avatar-upload';
+import {
+  deleteUserAccount,
+  deleteUserAvatar,
+  isProtectedAdminTarget,
+  parseAdminProfileForm,
+  roleLabel,
+  setUserEditorRole,
+  setUserGhost,
+  splitFullName,
+  updateUserProfile,
+} from '../../../lib/admin-users';
+
+const { supabase, user } = await getSiteAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const targetId = Astro.params.id ?? '';
+if (!uuidPattern.test(targetId)) {
+  Astro.response.status = 404;
+  return new Response('Konto nicht gefunden.', { status: 404 });
+}
+
+const adminClient = createAdminAuthClient();
+let error = '';
+let savedAction = '';
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const action = String(form.get('action') ?? '');
+    let result: string | null = null;
+    if (action === 'update-profile') {
+      const { values, error: parseError } = parseAdminProfileForm(form);
+      result =
+        parseError ??
+        (await updateUserProfile(adminClient, user, targetId, values));
+      savedAction = 'profil';
+    } else if (action === 'set-role') {
+      result = await setUserEditorRole(
+        adminClient,
+        user,
+        targetId,
+        form.get('value') === 'editor',
+      );
+      savedAction = 'rolle';
+    } else if (action === 'delete-avatar') {
+      result = await deleteUserAvatar(adminClient, user, targetId);
+      savedAction = 'avatar';
+    } else if (action === 'set-ghost') {
+      result = await setUserGhost(
+        adminClient,
+        user,
+        targetId,
+        form.get('value') === 'on',
+      );
+      savedAction = 'geist';
+    } else if (action === 'delete-account') {
+      result = await deleteUserAccount(
+        supabase,
+        adminClient,
+        user,
+        targetId,
+        form,
+      );
+      savedAction = 'loeschung';
+    }
+    if (result) error = result;
+    else if (action === 'delete-account')
+      return Astro.redirect('/admin/benutzer?geloscht=1', 303);
+    else if (savedAction)
+      return Astro.redirect(
+        `/admin/benutzer/${targetId}?gespeichert=${savedAction}`,
+        303,
+      );
+    else error = 'Ungültige Aktion.';
+  }
+}
+
+const { data: targetResult, error: targetError } =
+  await adminClient.auth.admin.getUserById(targetId);
+const target = targetError ? null : targetResult.user;
+if (!target) {
+  Astro.response.status = 404;
+  return new Response('Konto nicht gefunden.', { status: 404 });
+}
+const targetIsAdmin = isProtectedAdminTarget(target);
+const targetIsSelf = target.id === user.id;
+
+const [profileResult, detailsResult, factorsResult] = await Promise.all([
+  adminClient
+    .from('reader_profiles')
+    .select('username, avatar, avatar_url, is_ghost')
+    .eq('id', targetId)
+    .maybeSingle(),
+  adminClient
+    .from('reader_details')
+    .select('full_name, birth_date')
+    .eq('id', targetId)
+    .maybeSingle(),
+  supabase.auth.mfa.listFactors(),
+]);
+const profile = profileResult.data;
+const details = detailsResult.data;
+const nameParts = splitFullName(details?.full_name ?? '');
+const verifiedFactors =
+  factorsResult.data?.totp.filter((factor) => factor.status === 'verified') ??
+  [];
+const isEditor = target.app_metadata?.is_editor === true;
+const role = targetIsAdmin ? 'admin' : isEditor ? 'redaktion' : 'leser';
+const avatarUrl = profile?.avatar_url
+  ? readerAvatarPublicUrl(profile.avatar_url)
+  : null;
+const savedMessages: Record<string, string> = {
+  profil: 'Profildaten gespeichert.',
+  rolle: 'Redaktionsstatus geändert.',
+  avatar: 'Profilbild entfernt.',
+  geist: 'Geistermodus geändert.',
+};
+const saved = savedMessages[Astro.url.searchParams.get('gespeichert') ?? ''];
+---
+
+<AdminLayout
+  title={`Benutzer ${profile?.username ?? target.email ?? ''}`}
+  userEmail={user.email ?? 'Admin'}
+>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Community · Konten</span>
+      <h1>{profile?.username ?? 'Konto ohne Profil'}</h1>
+      <p>
+        {target.email} · Rolle: {roleLabel(role)}
+        {profile?.is_ghost ? ' · Geistermodus aktiv' : ''}
+        {targetIsSelf ? ' · eigenes Konto' : ''}
+      </p>
+      <p>
+        <a href="/admin/benutzer">Zurück zur Benutzerliste</a>
+      </p>
+    </div>
+  </header>
+
+  {
+    error && (
+      <p role="alert" class="admin-alert admin-alert--error">
+        {error}
+      </p>
+    )
+  }
+  {
+    saved && (
+      <p role="status" class="admin-alert">
+        {saved}
+      </p>
+    )
+  }
+
+  <section class="word-section" aria-labelledby="profil-title">
+    <h2 id="profil-title">Profildaten bearbeiten</h2>
+    <p>
+      Der vollständige Name wird aus Vor- und Nachname zusammengesetzt.
+      Username, Name und Geburtsdatum unterliegen denselben Regeln wie im
+      Leser-Profil; Eindeutigkeit und reservierte Namen prüft die Datenbank.
+    </p>
+    <form method="post" class="word-form">
+      <input type="hidden" name="action" value="update-profile" />
+      <label class="field">
+        <span>
+          Username<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input
+          name="username"
+          required
+          minlength="3"
+          maxlength="30"
+          pattern="[a-z0-9_]+"
+          value={profile?.username ?? ''}
+        />
+      </label>
+      <label class="field">
+        <span>
+          Vorname<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input
+          name="first_name"
+          required
+          maxlength="118"
+          value={nameParts.firstName}
+        />
+      </label>
+      <label class="field">
+        <span>
+          Nachname<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input
+          name="last_name"
+          required
+          maxlength="118"
+          value={nameParts.lastName}
+        />
+      </label>
+      <label class="field">
+        <span>
+          Geburtsdatum<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <input
+          type="date"
+          name="birth_date"
+          required
+          min="1900-01-01"
+          value={details?.birth_date ?? ''}
+        />
+      </label>
+      <button class="admin-primary-button" type="submit">
+        Profil speichern
+      </button>
+    </form>
+  </section>
+
+  <section class="word-section" aria-labelledby="rolle-title">
+    <h2 id="rolle-title">Redaktionsstatus</h2>
+    <p>
+      Aktuelle Rolle: <strong>{roleLabel(role)}</strong>. Eine Redaktionsrolle
+      verleiht keine Admin-Berechtigung. Admin-Konten können nicht herabgestuft
+      werden.
+    </p>
+    {
+      targetIsAdmin ? (
+        <p role="status">
+          Admin-Konten werden über diesen Bereich nicht verändert.
+        </p>
+      ) : (
+        <form method="post" class="word-form">
+          <input type="hidden" name="action" value="set-role" />
+          <input
+            type="hidden"
+            name="value"
+            value={isEditor ? 'leser' : 'editor'}
+          />
+          <button class="admin-primary-button" type="submit">
+            {isEditor ? 'Zurückstufen zu Leser' : 'Zur Redaktion machen'}
+          </button>
+        </form>
+      )
+    }
+  </section>
+
+  <section class="word-section" aria-labelledby="avatar-title">
+    <h2 id="avatar-title">Profilbild</h2>
+    {
+      avatarUrl ? (
+        <p>
+          <img src={avatarUrl} alt="" width="48" height="48" /> Aktuelles
+          Profilbild wird beim Löschen aus dem Speicher entfernt.
+        </p>
+      ) : (
+        <p>Kein eigenes Profilbild hinterlegt.</p>
+      )
+    }
+    <form method="post" class="word-form">
+      <input type="hidden" name="action" value="delete-avatar" />
+      <button class="admin-danger-button" type="submit" disabled={!avatarUrl}>
+        Profilbild löschen
+      </button>
+    </form>
+  </section>
+
+  <section class="word-section" aria-labelledby="geist-title">
+    <h2 id="geist-title">Geistermodus</h2>
+    <p>
+      {
+        profile?.is_ghost
+          ? 'Geistermodus aktiv: Das Konto kann Kommentare lesen, aber keine Kommentare, Antworten oder Bewertungen schreiben.'
+          : 'Geistermodus inaktiv: volle Schreibfunktion im Forum.'
+      }
+      Beim Aktivieren wird das Profilbild gelöscht und nicht wiederhergestellt.
+    </p>
+    {
+      targetIsAdmin ? (
+        <p role="status">
+          Admin-Konten werden nicht in den Geistermodus versetzt.
+        </p>
+      ) : (
+        <form method="post" class="word-form">
+          <input type="hidden" name="action" value="set-ghost" />
+          <input
+            type="hidden"
+            name="value"
+            value={profile?.is_ghost ? 'off' : 'on'}
+          />
+          <button
+            class:list={[
+              profile?.is_ghost
+                ? 'admin-primary-button'
+                : 'admin-danger-button',
+            ]}
+            type="submit"
+          >
+            {profile?.is_ghost
+              ? 'Geistermodus deaktivieren'
+              : 'Geistermodus aktivieren'}
+          </button>
+        </form>
+      )
+    }
+  </section>
+
+  <section class="word-section" aria-labelledby="loeschen-title">
+    <h2 id="loeschen-title">Konto löschen</h2>
+    <p>
+      Endgültige Löschung des Kontos. Veröffentlichte Kommentare bleiben
+      anonymisiert als „Gelöschter Nutzer“ erhalten, private Profildaten und
+      Avatar-Dateien werden entfernt. Erfordert bei jedem Vorgang den
+      Authenticator-Code dieses Admin-Kontos – auch auf vertrauten Geräten.
+    </p>
+    {
+      targetIsAdmin || targetIsSelf ? (
+        <p role="status">
+          {targetIsSelf
+            ? 'Die Selbstlöschung des eigenen Admin-Kontos ist ausgeschlossen.'
+            : 'Admin-Konten können über diesen Bereich nicht gelöscht werden.'}
+        </p>
+      ) : verifiedFactors.length === 0 ? (
+        <p role="alert">
+          Ohne eingerichteten zweiten Faktor ist die Kontolöschung nicht
+          möglich. Bitte richte zuerst einen Authenticator ein (
+          <a href="/admin/sicherheit">Sicherheit</a>).
+        </p>
+      ) : (
+        <>
+          <button
+            class="admin-danger-button"
+            type="button"
+            data-user-delete-open
+          >
+            Konto endgültig löschen …
+          </button>
+          <dialog
+            class="editor-dialog admin-delete-dialog"
+            data-user-delete-dialog
+            aria-labelledby="user-delete-title"
+          >
+            <span class="editor-dialog__eyebrow">Astro Fanblog Redaktion</span>
+            <h2 id="user-delete-title">
+              Konto „{profile?.username ?? target.email}“ endgültig löschen?
+            </h2>
+            <p>
+              Das Konto wird dauerhaft gelöscht und kann nicht wiederhergestellt
+              werden. Veröffentlichte Kommentare bleiben anonymisiert erhalten.
+            </p>
+            <form method="post" class="editor-dialog__form">
+              <input type="hidden" name="action" value="delete-account" />
+              <label class="field">
+                <span>
+                  Authenticator
+                  <span class="required-marker" aria-hidden="true" />
+                </span>
+                <select name="factor_id" required>
+                  {verifiedFactors.map((factor) => (
+                    <option value={factor.id}>
+                      {factor.friendly_name || 'Authenticator'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label class="field">
+                <span>
+                  Code
+                  <span class="required-marker" aria-hidden="true" />
+                </span>
+                <input
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  minlength="6"
+                  maxlength="6"
+                  required
+                />
+              </label>
+              <label class="reader-checkbox">
+                <input
+                  type="checkbox"
+                  name="confirm_delete"
+                  value="on"
+                  required
+                />
+                <span>Ja, dieses Konto endgültig löschen.</span>
+              </label>
+              <div class="editor-dialog__actions">
+                <button
+                  type="button"
+                  class="editor-dialog__cancel"
+                  data-user-delete-cancel
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  class="editor-dialog__submit admin-delete-dialog__submit"
+                >
+                  Konto endgültig löschen
+                </button>
+              </div>
+            </form>
+          </dialog>
+        </>
+      )
+    }
+  </section>
+</AdminLayout>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>(
+    '[data-user-delete-dialog]',
+  );
+  document
+    .querySelector('[data-user-delete-open]')
+    ?.addEventListener('click', () => dialog?.showModal());
+  dialog
+    ?.querySelector('[data-user-delete-cancel]')
+    ?.addEventListener('click', () => dialog.close());
+</script>
+
+<style>
+  .word-section {
+    margin-block: 32px;
+  }
+  .word-section h2 {
+    margin-bottom: 16px;
+  }
+  .word-section p {
+    margin-block: 12px;
+    max-width: 80ch;
+  }
+  .word-form {
+    display: grid;
+    gap: 12px;
+    max-width: 600px;
+    margin-block: 16px;
+  }
+</style>

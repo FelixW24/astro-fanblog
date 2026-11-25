@@ -1,0 +1,8 @@
+---
+interface Props {
+  id?: string;
+}
+const { id } = Astro.props;
+---
+
+<h1 id={id}><slot /><span class="page-heading-period">.</span></h1>

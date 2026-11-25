@@ -1,0 +1,121 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { isAdmin, isSameOrigin } from '../../lib/admin';
+import { createRequestClient } from '../../lib/supabase';
+import { authEmailHash, logAuthFailure } from '../../lib/auth-security';
+import '../../styles/admin.css';
+import BrandIcon from '../../components/BrandIcon.astro';
+import SessionNotice from '../../components/SessionNotice.astro';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const supabase = createRequestClient({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+const {
+  data: { user: existingUser },
+} = await supabase.auth.getUser();
+if (isAdmin(existingUser)) return Astro.redirect('/admin/sicherheit');
+if (existingUser) return Astro.redirect('/?redaktion=gesperrt');
+
+let error: string | null = null;
+let email = '';
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const formData = await Astro.request.formData();
+    email = String(formData.get('email') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+
+    if (formData.get('session_acknowledged') !== 'on') {
+      error =
+        'Bitte bestätige, dass du die Datenschutzhinweise zur Kenntnis genommen hast.';
+    } else {
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({ email, password });
+
+      if (signInError || !isAdmin(data.user)) {
+        if (data.user) {
+          logAuthFailure(
+            'admin_login_denied',
+            { code: 'not_editor' },
+            {
+              address: Astro.clientAddress,
+              emailHash: authEmailHash(email),
+            },
+          );
+          return Astro.redirect('/?redaktion=gesperrt', 303);
+        }
+        logAuthFailure(
+          'admin_login_failed',
+          { status: signInError?.status, code: signInError?.code },
+          {
+            address: Astro.clientAddress,
+            emailHash: authEmailHash(email),
+          },
+        );
+        error = 'E-Mail-Adresse oder Passwort sind nicht korrekt.';
+      } else {
+        return Astro.redirect('/admin/sicherheit', 303);
+      }
+    }
+  }
+}
+---
+
+<BaseLayout
+  title="Redaktion anmelden | Astro Fanblog"
+  description="Geschützter Zugang zur Astro Fanblog-Redaktion."
+>
+  <section class="admin-login-page">
+    <div class="admin-login-card">
+      <BrandIcon class="admin-login-mark" />
+      <p class="overline">Geschützter Bereich</p>
+      <h1>Redaktion</h1>
+      <p>Hier verwaltest du alle Beiträge, Entwürfe und Veröffentlichungen.</p>
+      {
+        error && (
+          <div
+            class="admin-alert admin-alert--error"
+            role="alert"
+            data-notification
+          >
+            {error}
+          </div>
+        )
+      }
+      <form method="post">
+        <label class="field"
+          ><span
+            >E-Mail-Adresse<span class="required-marker" aria-hidden="true"
+            ></span></span
+          ><input
+            type="email"
+            name="email"
+            value={email}
+            autocomplete="username"
+            required
+          /></label
+        >
+        <label class="field"
+          ><span
+            >Passwort<span class="required-marker" aria-hidden="true"
+            ></span></span
+          ><input
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+          /></label
+        >
+        <SessionNotice />
+        <button class="admin-primary-button" type="submit">Anmelden</button>
+      </form>
+      <a href="/">← Zurück zum Blog</a>
+    </div>
+  </section>
+</BaseLayout>

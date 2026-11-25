@@ -1,0 +1,65 @@
+/* One shared control for reader forms and the editorial workspace. */
+:root input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  border: 1px solid var(--reader-border, var(--color-slate));
+  border-radius: var(--spacing-4);
+  background-color: var(--reader-surface, var(--color-canvas));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+:root input[type='checkbox']:enabled:hover {
+  border-color: var(--color-blueprint-blue);
+}
+
+:root input[type='checkbox']:checked,
+:root input[type='checkbox']:indeterminate {
+  border-color: var(--color-blueprint-blue);
+  background-color: var(--color-blueprint-blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 8 3 3 7-7' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+:root input[type='checkbox']:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+:root input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--color-ink-black);
+  outline-offset: 3px;
+}
+
+:root input[type='checkbox'][aria-invalid='true'] {
+  border-color: var(--reader-accent, var(--color-blueprint-blue));
+  outline: 2px solid var(--reader-accent, var(--color-blueprint-blue));
+  outline-offset: 3px;
+}
+
+:root input[type='checkbox']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Let the OS draw an accessible control in high-contrast mode. */
+@media (forced-colors: active) {
+  :root input[type='checkbox'],
+  :root input[type='checkbox']:checked,
+  :root input[type='checkbox']:indeterminate {
+    appearance: auto;
+    -webkit-appearance: auto;
+    background-image: none;
+    opacity: 1;
+  }
+}

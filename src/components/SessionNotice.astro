@@ -1,0 +1,103 @@
+---
+interface Props {
+  requireTerms?: boolean;
+}
+
+const { requireTerms = false } = Astro.props;
+---
+
+<div class="session-notice" data-session-notice>
+  <label class="reader-checkbox"
+    ><input type="checkbox" name="session_acknowledged" required />
+    <span
+      >Ich habe die <a href="/datenschutz">Datenschutzhinweise</a> zur Kenntnis genommen.<span
+        class="required-marker"
+        aria-hidden="true"></span></span
+    >
+  </label>
+  {
+    requireTerms && (
+      <label class="reader-checkbox">
+        <input type="checkbox" name="terms_accepted" required />
+        <span>
+          Ich akzeptiere die <a href="/agb">AGB</a>.
+          <span class="required-marker" aria-hidden="true" />
+        </span>
+      </label>
+    )
+  }
+  <p
+    class="session-notice__validation"
+    data-session-validation
+    data-notification
+    role="alert"
+    hidden
+  >
+    Bitte klicken Sie das Kästchen an, um fortzufahren.
+  </p>
+</div>
+
+<script>
+  document
+    .querySelectorAll<HTMLElement>('[data-session-notice]')
+    .forEach((notice) => {
+      const form = notice.closest('form');
+      const message = document.querySelector<HTMLElement>(
+        '[data-session-validation]',
+      );
+      const boxes = Array.from(
+        notice.querySelectorAll<HTMLInputElement>(
+          'input[type="checkbox"][required]',
+        ),
+      );
+      if (!form || !message) return;
+
+      form.addEventListener(
+        'invalid',
+        (event) => {
+          if (
+            !(event.target instanceof HTMLInputElement) ||
+            !boxes.includes(event.target)
+          )
+            return;
+          event.preventDefault();
+          message.hidden = false;
+          event.target.setAttribute('aria-invalid', 'true');
+          if (boxes.find((box) => !box.checked) === event.target)
+            event.target.focus();
+        },
+        true,
+      );
+
+      boxes.forEach((box) =>
+        box.addEventListener('change', () => {
+          if (box.checked) box.removeAttribute('aria-invalid');
+          if (boxes.every((requiredBox) => requiredBox.checked))
+            message.hidden = true;
+        }),
+      );
+    });
+</script>
+
+<style>
+  .session-notice__validation {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--color-ink-black);
+    background: var(--color-paper);
+    border: 1px solid var(--color-fog);
+    border-left: 3px solid var(--color-blueprint-blue);
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .session-notice__validation[hidden] {
+    display: none;
+  }
+
+  .session-notice input[aria-invalid='true'] {
+    outline: 2px solid var(--color-blueprint-blue);
+    outline-offset: 2px;
+  }
+</style>

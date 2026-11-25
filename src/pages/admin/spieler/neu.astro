@@ -1,0 +1,437 @@
+---
+import PlayerInjuryFields from '../../../components/admin/PlayerInjuryFields.astro';
+import PlayerLoanFields from '../../../components/admin/PlayerLoanFields.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import PlayerChartTemplates from '../../../components/PlayerChartTemplates.astro';
+import { getAdmin, isSameOrigin } from '../../../lib/admin';
+import { savePlayerLoan } from '../../../lib/admin-loan';
+import { logAdminAction } from '../../../lib/audit-log';
+import {
+  emptyChart,
+  emptyPlayer,
+  parseOptionalChartForm,
+  parsePlayerForm,
+  playerPayload,
+  type ChartFormValues,
+  type PlayerFormValues,
+} from '../../../lib/admin-player';
+import {
+  playerChartTypes,
+  playerPositions,
+  preferredFeet,
+  squadStatuses,
+} from '../../../lib/player';
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+const currentSeason = `${new Date().getFullYear()}/${String((new Date().getFullYear() + 1) % 100).padStart(2, '0')}`;
+let values: PlayerFormValues = { ...emptyPlayer };
+const initialPosition = Astro.url.searchParams.get('position');
+const initialStatus = Astro.url.searchParams.get('squad_status');
+if (playerPositions.some(({ value }) => value === initialPosition))
+  values.position = initialPosition!;
+if (squadStatuses.some(({ value }) => value === initialStatus))
+  values.squad_status = initialStatus!;
+let chartValues: ChartFormValues = { ...emptyChart, title: '', metrics: '' };
+let error: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const formData = await Astro.request.formData();
+    const parsedPlayer = parsePlayerForm(formData);
+    values = parsedPlayer.values;
+    // Leistungsdaten sind optional: Erst wenn Titel, Beschreibung oder Werte
+    // eingetragen sind, wird ein Diagramm angelegt und validiert.
+    const parsedChart = parseOptionalChartForm(formData);
+    chartValues = parsedChart
+      ? parsedChart.values
+      : {
+          chart_type: String(formData.get('chart_type') ?? '') || 'radar',
+          sort_order: String(formData.get('chart_sort_order') ?? '') || '1',
+          title: String(formData.get('chart_title') ?? '').trim(),
+          description: String(formData.get('chart_description') ?? '').trim(),
+          metrics: String(formData.get('chart_metrics') ?? '').trim(),
+        };
+
+    error = parsedPlayer.error ?? parsedChart?.error ?? null;
+
+    if (!error) {
+      const mutation = await supabase.rpc(
+        'create_player_profile_with_availability',
+        {
+          p_player: playerPayload(values),
+          p_chart: parsedChart
+            ? {
+                chart_type: parsedChart.chartType,
+                title: parsedChart.values.title,
+                description: parsedChart.values.description || null,
+                metrics: parsedChart.metrics,
+                sort_order: parsedChart.sortOrder,
+              }
+            : null,
+        },
+      );
+      if (mutation.error) {
+        error = `Spielerprofil konnte nicht angelegt werden: ${mutation.error.message}`;
+      } else {
+        const loanError = await savePlayerLoan(
+          supabase,
+          Number(mutation.data),
+          values,
+        );
+        if (loanError)
+          error = `Das Spielerprofil wurde angelegt, aber ${loanError.charAt(0).toLowerCase()}${loanError.slice(1)}`;
+        else {
+          logAdminAction({
+            action: 'create',
+            entity: 'player',
+            entityId: Number(mutation.data),
+            actorEmail: user.email ?? undefined,
+            detail: `name=${values.name}`,
+          });
+          return Astro.redirect(
+            `/admin/spieler/${mutation.data}?created=1${parsedChart ? '' : '&chart=none'}`,
+            303,
+          );
+        }
+      }
+    }
+  }
+}
+
+const { data: templateData, error: templateLoadError } = await supabase
+  .from('player_chart_templates')
+  .select('*')
+  .order('name');
+const templates = (templateData ?? []).map((template) => ({
+  ...template,
+  chart_type:
+    template.chart_type === 'bar' ? ('bar' as const) : ('radar' as const),
+}));
+---
+
+<AdminLayout title="Spielerprofil anlegen" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <a class="admin-back" href="/admin/spieler"> ← Spielerprofile </a>
+      <span class="admin-eyebrow">Mannschaft</span>
+      <h1>Spielerprofil anlegen</h1>
+      <p>
+        Grunddaten erfassen und optional direkt ein Leistungsdiagramm anlegen.
+      </p>
+    </div>
+  </header>
+
+  <form id="player-profile-form" class="player-editor" method="post">
+    <p class="required-fields-note">
+      Der Bereich „Leistungsdaten“ ist optional.
+    </p>
+    {
+      error && (
+        <div
+          class="admin-alert admin-alert--error"
+          role="alert"
+          data-notification
+        >
+          {error}
+        </div>
+      )
+    }
+
+    <section class="editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Identität</span>
+          <h2>Grunddaten</h2>
+        </div>
+      </div>
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>
+            Name<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input name="name" value={values.name} required maxlength="120" />
+        </label>
+        <label class="field">
+          <span>
+            URL-Slug<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input
+            name="slug"
+            value={values.slug}
+            required
+            pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+          />
+        </label>
+        <label class="field">
+          <span>Rückennummer</span>
+          <input
+            name="shirt_number"
+            value={values.shirt_number}
+            type="number"
+            min="1"
+            max="99"
+          />
+        </label>
+        <label class="field">
+          <span>
+            Position<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <select id="player-position" name="position" required>
+            {
+              playerPositions.map((option) => (
+                <option
+                  value={option.value}
+                  selected={values.position === option.value}
+                >
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>
+            Kaderstatus<span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <select id="player-squad-status" name="squad_status" required>
+            {
+              squadStatuses.map((option) => (
+                <option
+                  value={option.value}
+                  selected={values.squad_status === option.value}
+                >
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>Nationalität</span>
+          <input name="nationality" value={values.nationality} maxlength="80" />
+        </label>
+      </div>
+    </section>
+
+    <section class="editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Steckbrief</span>
+          <h2>Persönliche Daten</h2>
+        </div>
+      </div>
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>Geburtsdatum</span>
+          <input
+            name="date_of_birth"
+            value={values.date_of_birth}
+            type="date"
+          />
+        </label>
+        <label class="field">
+          <span>Im Verein seit</span>
+          <input name="joined_on" value={values.joined_on} type="date" />
+        </label>
+        <label class="field">
+          <span>Vertrag bis</span>
+          <input
+            name="contract_until"
+            value={values.contract_until}
+            type="date"
+          />
+        </label>
+        <label class="field">
+          <span>Größe in cm</span>
+          <input
+            name="height_cm"
+            value={values.height_cm}
+            type="number"
+            min="140"
+            max="220"
+          />
+        </label>
+        <label class="field">
+          <span>Starker Fuß</span>
+          <select name="preferred_foot">
+            <option value="">Nicht hinterlegt</option>
+            {
+              preferredFeet.map((foot) => (
+                <option value={foot} selected={values.preferred_foot === foot}>
+                  {foot}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>Marktwert in Euro</span>
+          <input
+            name="market_value_eur"
+            value={values.market_value_eur}
+            type="number"
+            min="0"
+            step="1"
+          />
+        </label>
+      </div>
+      <label class="field">
+        <span>Redaktionstext</span>
+        <textarea
+          name="bio"
+          rows="5"
+          maxlength="2000"
+          placeholder="Kurze Einordnung des Spielers …">{values.bio}</textarea
+        >
+      </label>
+      <label class="field">
+        <span>
+          Profil-Slogan<span class="required-marker" aria-hidden="true"></span>
+        </span>
+        <textarea
+          name="profile_slogan"
+          rows="2"
+          maxlength="120"
+          required
+          placeholder="Immer
+für Kölle.">{values.profile_slogan}</textarea
+        >
+        <small>Zeilenumbrüche werden im Profil übernommen.</small>
+      </label>
+    </section>
+
+    <PlayerInjuryFields values={values} />
+
+    <PlayerLoanFields values={values} />
+
+    <section class="editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Medien</span>
+          <h2>Profilbild</h2>
+        </div>
+      </div>
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>Bild-URL</span>
+          <input
+            name="profile_image_url"
+            value={values.profile_image_url}
+            type="url"
+            placeholder="https://…"
+          />
+        </label>
+        <label class="field">
+          <span>
+            Alternativtext
+            <span class="required-marker" aria-hidden="true"></span>
+          </span>
+          <input
+            name="profile_image_alt"
+            data-required-with="profile_image_url"
+            required={Boolean(values.profile_image_url)}
+            value={values.profile_image_alt}
+            maxlength="240"
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="editor-panel player-performance-editor">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Analyse</span>
+          <h2>Leistungsdaten</h2>
+          <p>
+            Optional: Lege direkt ein Radar- oder Balkendiagramm an. Übernimm
+            eine Vorlage oder trage eigene Kennzahlen unter „Werte“ ein – eine
+            Kennzahl pro Zeile, zum Beispiel „Tempo: 82“. Weitere Diagramme
+            kannst du später beim Bearbeiten ergänzen.
+          </p>
+        </div>
+      </div>
+      <PlayerChartTemplates
+        templates={templates}
+        position={values.position}
+        unavailable={Boolean(templateLoadError)}
+      />
+      <div class="player-editor-grid">
+        <label class="field">
+          <span>Charttitel</span>
+          <input
+            name="chart_title"
+            value={chartValues.title}
+            maxlength="120"
+            placeholder={`Leistungsdaten ${currentSeason}`}
+          />
+        </label>
+        <label class="field">
+          <span>Beschreibung</span>
+          <input
+            name="chart_description"
+            value={chartValues.description}
+            maxlength="300"
+            placeholder="Optionaler redaktioneller Hinweis"
+          />
+        </label>
+        <label class="field">
+          <span>Grafiktyp</span>
+          <select name="chart_type">
+            {
+              playerChartTypes.map((option) => (
+                <option
+                  value={option.value}
+                  selected={chartValues.chart_type === option.value}
+                >
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span>Anzeigereihenfolge im Profil</span>
+          <input
+            name="chart_sort_order"
+            value={chartValues.sort_order}
+            type="number"
+            min="1"
+            max="32767"
+            step="1"
+          />
+          <small>1 wird zuerst angezeigt.</small>
+        </label>
+      </div>
+      <label class="field">
+        <span>Werte</span>
+        <textarea
+          name="chart_metrics"
+          rows="8"
+          placeholder={emptyChart.metrics}
+          aria-describedby="chart-metrics-help">{chartValues.metrics}</textarea
+        >
+        <small id="chart-metrics-help">
+          Eine Kennzahl pro Zeile, zum Beispiel „Tempo: 82“. Erlaubt sind 3–10
+          ganze Zahlen von 0 bis 100, ohne Prozentzeichen (%). Eigene Felder
+          außerhalb der Vorlagen sind hier direkt möglich. Bleibt der Bereich
+          leer, wird der Spieler ohne Diagramm angelegt.
+        </small>
+      </label>
+    </section>
+
+    <div class="player-editor-actions">
+      <button class="admin-primary-button" type="submit">
+        Spielerprofil anlegen
+      </button>
+    </div>
+  </form>
+</AdminLayout>

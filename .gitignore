@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.astro/
+.data/
+.idea/
+*.iml
+.env
+.env.local
+supabase/.temp/
+supabase/.branches/
+*.log
+
+
+## Panda
+styled-system
+styled-system-studio

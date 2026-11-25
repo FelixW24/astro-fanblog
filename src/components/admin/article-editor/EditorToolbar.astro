@@ -1,0 +1,62 @@
+<header class="editor-command-bar">
+  <div>
+    <span class="editor-save-dot" aria-hidden="true"></span>
+    <span id="editor-save-state" aria-live="polite">Lokaler Entwurf bereit</span
+    >
+  </div>
+  <div class="editor-command-actions">
+    <span id="editor-word-count">0 Wörter</span>
+    <button type="button" class="editor-import-button" data-import-markdown
+      >Markdown importieren</button
+    >
+    <input
+      type="file"
+      accept=".md,.markdown,text/markdown"
+      data-markdown-file
+      hidden
+    />
+    <button type="button" class="editor-text-button" data-discard-draft>
+      Lokalen Entwurf löschen
+    </button>
+    <span class="editor-shortcut">⌘/Strg + S</span>
+  </div>
+</header>
+
+<div
+  class="markdown-import-status"
+  data-markdown-import-status
+  data-notification
+  role="status"
+  aria-live="polite"
+  hidden
+>
+</div>
+
+<nav class="editor-wizard-progress" aria-label="Schritte im Artikel-Wizard">
+  <ol>
+    <li>
+      <button type="button" data-wizard-go="1" aria-current="step">
+        <span>1</span><strong>Grundlagen</strong><small>Titel & Teaser</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" data-wizard-go="2">
+        <span>2</span><strong>Inhalt</strong><small>Text & Vorschau</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" data-wizard-go="3">
+        <span>3</span><strong>Details</strong><small>SEO & Einordnung</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" data-wizard-go="4">
+        <span>4</span><strong>Abschluss</strong><small>Prüfen & speichern</small
+        >
+      </button>
+    </li>
+  </ol>
+</nav>
+<p class="sr-only" data-wizard-announcement aria-live="polite">
+  Schritt 1 von 4: Grundlagen
+</p>

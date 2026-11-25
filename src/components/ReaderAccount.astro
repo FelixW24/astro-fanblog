@@ -1,0 +1,122 @@
+---
+import Icon from './Icon.astro';
+import ReaderAvatar from './ReaderAvatar.astro';
+import NotificationBell from './NotificationBell.astro';
+import { isAdmin } from '../lib/admin';
+import { readerAvatarPublicUrl } from '../lib/avatar-upload';
+import { getNotificationBellData } from '../lib/notifications';
+import '../styles/public/header-account.css';
+const user = Astro.locals.readerUser;
+const editor = isAdmin(user ?? null);
+const { data: profile } = user
+  ? await Astro.locals
+      .supabase!.from('reader_profiles')
+      .select('username, avatar, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle()
+  : { data: null };
+// Glocke mit ungelesenen Benachrichtigungen nur für angemeldete Leser; sie
+// hängt ausschließlich im Konto-Popup, nicht direkt im Header.
+const bellData =
+  user && Astro.locals.supabase
+    ? await getNotificationBellData(Astro.locals.supabase, user.id)
+    : null;
+const username = profile?.username ?? (editor ? 'Redaktion' : 'Mein Konto');
+const avatar = profile?.avatar ?? 'male';
+const avatarUrl = profile?.avatar_url
+  ? readerAvatarPublicUrl(profile.avatar_url)
+  : null;
+---
+
+<nav class="header-account" aria-label="Leserkonto">
+  {
+    user ? (
+      <details class="account-menu" data-account-menu>
+        <summary class="account-menu__trigger">
+          <>
+            <ReaderAvatar variant={avatar} imageUrl={avatarUrl} />
+            <span class="account-menu__name">{username}</span>
+          </>
+          <Icon name="chevron-down" size={14} class="account-menu__chevron" />
+        </summary>
+        <div class="account-menu__panel">
+          <div class="account-menu__identity">
+            <>
+              <span class="account-menu__eyebrow">
+                {editor ? 'Redaktionsmitglied' : 'Dein Leserkonto'}
+              </span>
+              <strong>{username}</strong>
+              <span class="account-menu__email">{user.email}</span>
+            </>
+          </div>
+          {bellData && (
+            <NotificationBell
+              items={bellData.items}
+              unreadCount={bellData.unreadCount}
+              variant="menu"
+            />
+          )}
+          <button
+            type="button"
+            class="account-menu__item"
+            data-profile-open
+            data-profile-section="persoenliche-informationen"
+          >
+            <>
+              <Icon name="users" size={18} />
+              <span>Mein Profil</span>
+              <Icon name="arrow-right" size={16} />
+            </>
+          </button>
+          {editor && (
+            <a href="/admin" class="account-menu__item">
+              <Icon name="article" size={18} />
+              <span>Redaktion</span>
+              <Icon name="arrow-right" size={16} />
+            </a>
+          )}
+          <form method="post" action="/abmelden" class="account-menu__logout">
+            <button type="submit" class="account-menu__item">
+              <>
+                <Icon name="external-link" size={18} />
+                <span>Abmelden</span>
+              </>
+            </button>
+          </form>
+        </div>
+      </details>
+    ) : (
+      <div class="header-account__guest">
+        <a class="header-account__login" href="/anmelden">
+          <Icon name="users" size={17} />
+          <span class="nav-label">Login</span>
+        </a>
+      </div>
+    )
+  }
+</nav>
+
+<script>
+  document
+    .querySelectorAll<HTMLDetailsElement>('[data-account-menu]')
+    .forEach((menu) => {
+      const trigger = menu.querySelector('summary');
+      document.addEventListener('click', (event) => {
+        if (event.target instanceof Node && !menu.contains(event.target))
+          menu.open = false;
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && menu.open) {
+          menu.open = false;
+          trigger?.focus();
+        }
+      });
+      menu.addEventListener('focusout', (event) => {
+        if (
+          event.relatedTarget instanceof Node &&
+          !menu.contains(event.relatedTarget)
+        )
+          menu.open = false;
+      });
+    });
+</script>

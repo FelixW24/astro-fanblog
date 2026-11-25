@@ -1,0 +1,204 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { isAdmin, isSameOrigin } from '../../lib/admin';
+import {
+  hasSecondFactor,
+  setTrustedDeviceCookie,
+  TRUSTED_DEVICE_COOKIE,
+  trustedDeviceEnabled,
+  validTrustedDeviceCookie,
+} from '../../lib/auth-security';
+import '../../styles/public/readers.css';
+
+const user = Astro.locals.readerUser ?? null;
+if (!isAdmin(user)) return Astro.redirect('/admin/login');
+const client = Astro.locals.supabase!;
+// Vertrautes Gerät (24h): Die Zweitfaktor-Abfrage entfällt in dieser Zeit.
+if (
+  (await hasSecondFactor(client)) ||
+  validTrustedDeviceCookie(
+    Astro.cookies.get(TRUSTED_DEVICE_COOKIE)?.value,
+    user.id,
+  )
+)
+  return Astro.redirect('/admin');
+let error = '';
+let enrollment: { id: string; secret: string; qr: string } | undefined;
+// auth-js liefert den QR-Code als "data:image/svg+xml;utf-8," + rohes SVG.
+// Rohes SVG enthaelt '#', das in einer Data-URI als FragmentBeginn gilt -
+// ohne Neu-Kodierung wird das SVG abgeschnitten und der QR-Code ist kaputt.
+const qrImageSrc = (qr: string) =>
+  qr.startsWith('data:image/svg+xml;utf-8,')
+    ? `data:image/svg+xml,${encodeURIComponent(qr.slice('data:image/svg+xml;utf-8,'.length))}`
+    : qr.startsWith('data:')
+      ? qr
+      : `data:image/svg+xml,${encodeURIComponent(qr)}`;
+const { data: factors, error: factorsError } =
+  await client.auth.mfa.listFactors();
+if (factorsError)
+  error =
+    'Die Sicherheitsprüfung ist gerade nicht verfügbar. Bitte versuche es erneut.';
+const verified =
+  factors?.totp.filter((factor) => factor.status === 'verified') ?? [];
+let factorId = verified[0]?.id ?? '';
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error = 'Die Anfrage konnte nicht verifiziert werden.';
+  } else if (!error) {
+    const form = await Astro.request.formData();
+    if (form.get('action') === 'enroll' && verified.length === 0) {
+      // Remove only incomplete TOTP setups, never an enrolled second factor.
+      for (const factor of factors?.all ?? []) {
+        if (factor.factor_type === 'totp' && factor.status === 'unverified') {
+          const { error: removeError } = await client.auth.mfa.unenroll({
+            factorId: factor.id,
+          });
+          if (removeError)
+            error = 'Die Einrichtung konnte nicht vorbereitet werden.';
+        }
+      }
+      if (!error) {
+        const { data, error: enrollError } = await client.auth.mfa.enroll({
+          factorType: 'totp',
+          friendlyName: 'Astro Fanblog Redaktion',
+          issuer: 'Astro Fanblog',
+        });
+        if (enrollError)
+          error = 'Der zweite Faktor konnte nicht eingerichtet werden.';
+        else {
+          factorId = data.id;
+          enrollment = {
+            id: data.id,
+            secret: data.totp.secret,
+            qr: data.totp.qr_code,
+          };
+        }
+      }
+    } else if (form.get('action') === 'verify') {
+      factorId = String(form.get('factor_id') ?? '');
+      const ownFactor = factors?.all.find(
+        (factor) => factor.id === factorId && factor.factor_type === 'totp',
+      );
+      const code = String(form.get('code') ?? '').trim();
+      if (!ownFactor || !/^\d{6}$/.test(code))
+        error = 'Bitte gib einen gültigen sechsstelligen Code ein.';
+      else {
+        const { error: verifyError } = await client.auth.mfa.challengeAndVerify(
+          { factorId, code },
+        );
+        if (verifyError)
+          error =
+            'Der Code ist ungültig oder abgelaufen. Bitte versuche es erneut.';
+        else {
+          if (form.get('trust_device') === 'on')
+            setTrustedDeviceCookie(Astro.cookies, user.id, Astro.request.url);
+          return Astro.redirect('/admin', 303);
+        }
+      }
+    }
+  }
+}
+---
+
+<BaseLayout title="Redaktion absichern | Astro Fanblog">
+  <section class="reader-panel shell">
+    <h1>Zwei-Faktor-Authentifizierung</h1>
+    <p>
+      Für den Redaktionszugang benötigst du zusätzlich einen Code aus deiner
+      Authenticator-App.
+    </p>
+    {
+      error && (
+        <p role="alert" data-notification>
+          {error}
+        </p>
+      )
+    }
+    {
+      enrollment && (
+        <div>
+          <>
+            <p>
+              Scanne diesen QR-Code mit deiner Authenticator-App und bewahre den
+              Einrichtungsschlüssel sicher auf.
+            </p>
+            <div class="qr-code">
+              <img
+                src={qrImageSrc(enrollment.qr)}
+                alt="QR-Code zur Einrichtung der Authenticator-App"
+                width="200"
+                height="200"
+              />
+            </div>
+            <p>
+              Einrichtungsschlüssel: <code>{enrollment.secret}</code>
+            </p>
+          </>
+        </div>
+      )
+    }
+    {
+      factorId && (
+        <form method="post" class="reader-form">
+          <>
+            <input type="hidden" name="action" value="verify" />
+            <input type="hidden" name="factor_id" value={factorId} />
+            <label>
+              <span>
+                Authenticator-Code
+                <span class="required-marker" aria-hidden="true" />
+              </span>
+              <input
+                name="code"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                pattern="[0-9]{6}"
+                minlength="6"
+                maxlength="6"
+                required
+              />
+            </label>
+            {trustedDeviceEnabled() && (
+              <label class="reader-checkbox">
+                <input type="checkbox" name="trust_device" />
+                <span>
+                  Auf diesem Gerät 24 Stunden ohne erneuten Code in die
+                  Redaktion lassen
+                </span>
+              </label>
+            )}
+            <button type="submit">Code bestätigen</button>
+          </>
+        </form>
+      )
+    }
+    {
+      !verified.length && !enrollment && (
+        <form method="post" class="reader-form">
+          <>
+            <input type="hidden" name="action" value="enroll" />
+            <button type="submit">Authenticator einrichten</button>
+          </>
+        </form>
+      )
+    }
+    <form method="post" action="/abmelden">
+      <button type="submit">Abmelden</button>
+    </form>
+  </section>
+</BaseLayout>
+
+<style>
+  .qr-code {
+    display: inline-block;
+    padding: 12px;
+    background: #ffffff;
+    border-radius: var(--radius-cards, 12px);
+    box-shadow: var(--shadow-floating, 0 8px 24px rgb(0 0 0 / 0.15));
+  }
+  .qr-code img {
+    display: block;
+    filter: contrast(1.1);
+  }
+</style>

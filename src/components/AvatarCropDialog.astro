@@ -1,0 +1,87 @@
+---
+import Icon from './Icon.astro';
+
+// Zuschneide-Modal für das Profilbild: öffnet sich direkt über die
+// „Profilbild hochladen“-Schaltfläche. Im Modal wird das Bild ausgewählt,
+// zugeschnitten (ziehen, Zoom-Regler, Tastatur) und erst „Übernehmen“ lädt
+// hoch. Die Verdrahtung übernimmt wireAvatarUpload in
+// src/scripts/profile-avatar.ts.
+---
+
+<dialog
+  class="avatar-crop"
+  data-avatar-crop-dialog
+  aria-labelledby="avatar-crop-title"
+>
+  <div class="avatar-crop__surface">
+    <header class="avatar-crop__header">
+      <h3 id="avatar-crop-title">Profilbild zuschneiden</h3>
+      <button
+        type="button"
+        class="profile-dialog__close"
+        data-avatar-crop-cancel
+        aria-label="Zuschnitt abbrechen">×</button
+      >
+    </header>
+    <div class="avatar-crop__body">
+      <div class="avatar-crop__empty" data-avatar-crop-empty>
+        <Icon name="image" size={28} class="avatar-crop__empty-icon" />
+        <button
+          type="button"
+          class="avatar-crop__select"
+          data-avatar-crop-select
+        >
+          Bild auswählen
+        </button>
+      </div>
+      <div class="avatar-crop__frame" data-avatar-crop-frame hidden tabindex="0"
+        aria-label="Bildausschnitt anpassen. Pfeiltasten bewegen das Bild, Plus und Minus zoomen."
+      >
+        <img
+          class="avatar-crop__image"
+          data-avatar-crop-image
+          alt=""
+          draggable="false"
+        />
+        <span class="avatar-crop__grid" aria-hidden="true"></span>
+      </div>
+      <div class="avatar-crop__zoom" data-avatar-crop-controls hidden>
+        <button
+          type="button"
+          class="avatar-crop__zoom-button"
+          data-avatar-crop-out
+          aria-label="Kleiner zoomen"
+        >−</button>
+        <input
+          type="range"
+          class="avatar-crop__zoom-range"
+          data-avatar-crop-zoom
+          min="1"
+          max="4"
+          step="0.01"
+          value="1"
+          aria-label="Zoomstufe"
+        />
+        <button
+          type="button"
+          class="avatar-crop__zoom-button"
+          data-avatar-crop-in
+          aria-label="Größer zoomen"
+        >+</button>
+      </div>
+      <div class="avatar-crop__actions">
+        <button type="button" class="avatar-crop__cancel" data-avatar-crop-cancel>
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          class="avatar-crop__confirm"
+          data-avatar-crop-confirm
+          disabled
+        >
+          Übernehmen
+        </button>
+      </div>
+    </div>
+  </div>
+</dialog>

@@ -1,0 +1,27 @@
+---
+import CategoryOverview from '../../components/CategoryOverview.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  categories,
+  categoryMeta,
+  getArticles,
+  type Article,
+} from '../../lib/content';
+
+const { category } = Astro.params;
+if (!category || !categories.some((item) => item.slug === category))
+  return Astro.redirect('/404');
+
+const meta = categoryMeta(category);
+let articles: Article[] = [];
+let backendAvailable = true;
+try {
+  articles = await getArticles({ category });
+} catch {
+  backendAvailable = false;
+}
+---
+
+<BaseLayout title={`${meta.label} | Astro Fanblog`}>
+  <CategoryOverview category={meta.slug} {articles} {backendAvailable} />
+</BaseLayout>

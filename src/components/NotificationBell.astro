@@ -1,0 +1,173 @@
+---
+import Icon from './Icon.astro';
+import { categoryMeta, formatDate } from '../lib/content';
+import type { NotificationItem } from '../lib/notifications';
+import '../styles/public/notification-bell.css';
+
+interface Props {
+  items: NotificationItem[];
+  unreadCount: number;
+  variant?: 'menu';
+}
+
+const { items, unreadCount, variant = 'menu' } = Astro.props;
+const inMenu = variant === 'menu';
+const bellLabel =
+  unreadCount > 0
+    ? `Benachrichtigungen, ${unreadCount} ungelesen`
+    : 'Benachrichtigungen';
+---
+
+<details
+  class:list={['notification-bell', `notification-bell--${variant}`]}
+  data-notification-bell
+>
+  <summary
+    class:list={[
+      'notification-bell__trigger',
+      inMenu && 'notification-bell__trigger--menu',
+    ]}
+    aria-label={bellLabel}
+    data-bell-trigger
+  >
+    <Icon name="bell" size={18} />
+    {inMenu && <span class="notification-bell__label">Benachrichtigungen</span>}
+    {
+      unreadCount > 0 && (
+        <span class="notification-bell__badge" data-unread-badge>
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )
+    }
+    {
+      inMenu && (
+        <Icon
+          name="chevron-down"
+          size={14}
+          class="notification-bell__chevron"
+        />
+      )
+    }
+  </summary>
+  <div class="notification-bell__panel">
+    <div class="notification-bell__head">
+      <strong>Benachrichtigungen</strong>
+      {
+        unreadCount > 0 && (
+          <button
+            type="button"
+            class="notification-bell__mark-all"
+            data-mark-all-read
+          >
+            Alle als gelesen markieren
+          </button>
+        )
+      }
+    </div>
+    {
+      items.length === 0 ? (
+        <p class="notification-bell__empty">Keine Benachrichtigungen.</p>
+      ) : (
+        <ul class="notification-bell__list">
+          {items.map((item) => (
+            <li>
+              <a
+                href={`/beitraege/${item.slug}`}
+                class:list={[
+                  'notification-bell__item',
+                  { 'notification-bell__item--unread': !item.read_at },
+                ]}
+                data-notification-item
+              >
+                <span class="notification-bell__title">{item.title}</span>
+                <span class="notification-bell__meta">
+                  {categoryMeta(item.category).label} ·{' '}
+                  {formatDate(item.created_at)}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </div>
+</details>
+
+<script>
+  // Glocke im Header: Dropdown wie das Kontomenü bedienen und „alle als
+  // gelesen“ über die API markieren. Mehrere Instanzen (mobil + Sidebar)
+  // teilen sich dieses Skript über querySelectorAll.
+  for (const bell of document.querySelectorAll<HTMLDetailsElement>(
+    '[data-notification-bell]',
+  )) {
+    const trigger = bell.querySelector('summary');
+    const badge = bell.querySelector<HTMLElement>('[data-unread-badge]');
+    const markAll = bell.querySelector<HTMLButtonElement>(
+      '[data-mark-all-read]',
+    );
+
+    const setUnread = (count: number) => {
+      if (badge) {
+        if (count > 0) {
+          badge.textContent = count > 99 ? '99+' : String(count);
+          badge.removeAttribute('hidden');
+        } else {
+          badge.setAttribute('hidden', '');
+        }
+      }
+      trigger?.setAttribute(
+        'aria-label',
+        count > 0
+          ? `Benachrichtigungen, ${count} ungelesen`
+          : 'Benachrichtigungen',
+      );
+      if (count === 0) markAll?.setAttribute('hidden', '');
+      for (const item of bell.querySelectorAll(
+        '.notification-bell__item--unread',
+      ))
+        item.classList.remove('notification-bell__item--unread');
+    };
+
+    markAll?.addEventListener('click', () => {
+      markAll.disabled = true;
+      fetch('/api/benachrichtigungen/lesen', {
+        method: 'POST',
+        body: new FormData(),
+      })
+        .then(async (response) => {
+          const data = (await response.json().catch(() => null)) as {
+            error?: string;
+            unread?: number;
+          } | null;
+          if (!response.ok || !data || data.error)
+            throw new Error(data?.error ?? 'mark read failed');
+          setUnread(data.unread ?? 0);
+        })
+        .catch(() => {
+          // Ohne Rückmeldung bleibt der Stand unverändert; nächster
+          // Seitenaufruf rendert die Glocke serverseitig neu.
+        })
+        .finally(() => {
+          markAll.disabled = false;
+        });
+    });
+
+    document.addEventListener('click', (event) => {
+      if (event.target instanceof Node && !bell.contains(event.target))
+        bell.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && bell.open) {
+        bell.open = false;
+        trigger?.focus();
+      }
+    });
+    bell.addEventListener('focusout', (event) => {
+      if (
+        event.relatedTarget instanceof Node &&
+        !bell.contains(event.relatedTarget)
+      )
+        bell.open = false;
+    });
+  }
+</script>

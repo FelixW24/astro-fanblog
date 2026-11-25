@@ -1,0 +1,289 @@
+---
+import PlayerStatusBadges from '../components/PlayerStatusBadges.astro';
+import PageHeading from '../components/PageHeading.astro';
+import SectionTimeline from '../components/SectionTimeline.astro';
+import SquadStats from '../components/SquadStats.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { calculateAge, countryFlagCode, formatPlayerDate } from '../lib/player';
+import EmptyState from '../components/EmptyState.astro';
+import { getSquad, type Player } from '../lib/content';
+import { getSquadStats, type SquadStat } from '../lib/squad-stats';
+import '../styles/public/squad-stats.css';
+
+const positions = [
+  { slug: 'torwart', label: 'Torhüter', icon: 'shirt' as const },
+  { slug: 'abwehr', label: 'Abwehr', icon: 'shield' as const },
+  { slug: 'mittelfeld', label: 'Mittelfeld', icon: 'users' as const },
+  { slug: 'sturm', label: 'Angriff', icon: 'boot' as const },
+];
+let players: Player[] = [];
+let squadStats: SquadStat[] = [];
+let backendAvailable = true;
+try {
+  players = await getSquad();
+  squadStats = await getSquadStats(players);
+} catch {
+  backendAvailable = false;
+}
+
+const navItems = [
+  ...positions.map((position) => ({
+    ...position,
+    count: players.filter((player) => player.position === position.slug).length,
+  })),
+  ...(squadStats.length
+    ? [
+        {
+          slug: 'statistiken',
+          label: 'Statistiken',
+          icon: 'report' as const,
+          rail: false,
+        },
+      ]
+    : []),
+];
+---
+
+<BaseLayout
+  title="Kader 2026/27 | Astro Fanblog"
+  description="Der aktuelle Profikader des FC Example nach Mannschaftsteilen."
+>
+  <header class="page-hero page-hero--squad">
+    <div class="shell">
+      <span class="overline">Saison 2026/27</span>
+      <PageHeading>Unser Kader</PageHeading>
+      <SectionTimeline
+        embedded={true}
+        ariaLabel="Kader-Bereiche"
+        items={navItems}
+      />
+    </div>
+  </header>
+  <div class="section shell squad-list" data-squad-container>
+    {
+      !backendAvailable ? (
+        <EmptyState
+          technical
+          title="Kader ist gerade nicht erreichbar"
+          message="Bitte versuche es in ein paar Minuten noch einmal."
+        />
+      ) : !players.length ? (
+        <EmptyState
+          title="Noch keine Spieler im Kader"
+          message="Sobald der Kader gepflegt ist, findest du hier alle Spieler."
+        />
+      ) : (
+        <>
+          {positions.map((position, index) => {
+            const group = players.filter(
+              (player) => player.position === position.slug,
+            );
+            return (
+              <section
+                class="position-group"
+                id={position.slug}
+                aria-labelledby={`${position.slug}-heading`}
+                data-squad-section={position.slug}
+                data-squad-index={index + 1}
+                data-squad-title={position.label}
+              >
+                <header>
+                  <>
+                    <h2 id={`${position.slug}-heading`}>
+                      {position.label} <small>({group.length})</small>
+                    </h2>
+                  </>
+                </header>
+                <div class="player-grid">
+                  {group.map((player) => {
+                    const age = calculateAge(player.date_of_birth);
+                    return (
+                      <a
+                        class="player-card"
+                        data-player-card
+                        href={`/kader/${player.slug}`}
+                        aria-label={`Spielerprofil von ${player.name} öffnen`}
+                      >
+                        <div class="shirt-number">
+                          {player.shirt_number ?? '–'}
+                        </div>
+                        <div class="player-card__copy">
+                          <span>{position.label}</span>
+                          <h3>{player.name}</h3>
+                          <PlayerStatusBadges player={player} />
+                        </div>
+                        {player.nationality && (
+                          <span class="squad-nationality">
+                            <span
+                              class={`fi fi-${countryFlagCode(player.nationality)}`}
+                              aria-hidden="true"
+                            />
+                            {player.nationality}
+                          </span>
+                        )}
+                        <dl class="squad-facts">
+                          <div>
+                            <dt>Alter</dt>
+                            <dd>{age !== null ? `${age} Jahre` : '–'}</dd>
+                          </div>
+                          <div>
+                            <dt>Größe</dt>
+                            <dd>
+                              {player.height_cm
+                                ? `${(player.height_cm / 100).toFixed(2).replace('.', ',')} m`
+                                : '–'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Tore</dt>
+                            <dd>{player.total_goals}</dd>
+                          </div>
+                          <div>
+                            <dt>Vorlagen</dt>
+                            <dd>{player.total_assists}</dd>
+                          </div>
+                          <div>
+                            <dt>Vertrag bis</dt>
+                            <dd>
+                              {player.contract_until
+                                ? formatPlayerDate(player.contract_until)
+                                : '–'}
+                            </dd>
+                          </div>
+                        </dl>
+                        <span class="player-card__arrow" aria-hidden="true">
+                          ↗
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+          {squadStats.length > 0 && (
+            <section
+              class="position-group"
+              id="statistiken"
+              aria-labelledby="squad-stats-heading"
+              data-squad-section="statistiken"
+              data-squad-index={positions.length + 1}
+              data-squad-title="Statistiken"
+            >
+              <SquadStats stats={squadStats} />
+            </section>
+          )}
+        </>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .position-group {
+    scroll-margin-top: var(--squad-scroll-offset, 124px);
+  }
+  .position-group + .position-group {
+    margin-top: 48px;
+  }
+  .position-group h2 {
+    font-size: 30px;
+    letter-spacing: -0.025em;
+  }
+  .position-group h2 small {
+    color: var(--color-slate);
+    font-size: 18px;
+    font-weight: 400;
+  }
+  .player-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .player-card {
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--color-fog);
+    background: var(--color-canvas);
+    box-shadow: none;
+    transform: none;
+  }
+  .player-card:hover {
+    background: var(--surface-interactive-hover);
+    border-color: var(--color-blueprint-blue);
+    box-shadow: none;
+    transform: none;
+  }
+  .shirt-number {
+    width: 64px;
+    height: 56px;
+    background: none;
+    border: 0;
+    border-right: 1px solid var(--color-fog);
+    border-radius: 0;
+    color: var(--color-ink-black);
+    font-size: 32px;
+    font-variant-numeric: tabular-nums;
+  }
+  .player-card__copy {
+    flex: 1;
+  }
+  .player-card__copy h3 {
+    font-size: 18px;
+    margin: 0 0 4px;
+    overflow-wrap: anywhere;
+  }
+  .player-card__copy > span {
+    font-size: 14px;
+  }
+  .squad-nationality {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .squad-facts {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr 1.2fr;
+    width: 100%;
+    margin: 0;
+    gap: 12px;
+    border-top: 1px solid var(--color-fog);
+    padding-top: 14px;
+  }
+  .squad-facts div + div {
+    border-left: 1px solid var(--color-fog);
+    padding-left: 12px;
+  }
+  .squad-facts dt {
+    color: var(--color-slate);
+    font-size: 12px;
+  }
+  .squad-facts dd {
+    margin: 4px 0 0;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .player-card__arrow {
+    order: -1;
+    display: none;
+  }
+  @media (max-width: 1100px) {
+    .player-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 600px) {
+    .player-card {
+      padding: 16px;
+      gap: 12px;
+    }
+    .shirt-number {
+      width: 48px;
+      font-size: 26px;
+    }
+    .squad-nationality {
+      width: 100%;
+    }
+  }
+</style>

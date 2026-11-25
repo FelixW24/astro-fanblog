@@ -1,0 +1,43 @@
+---
+import Icon from './Icon.astro';
+import type { SquadStat } from '../lib/squad-stats';
+
+interface Props {
+  stats: SquadStat[];
+}
+
+const { stats } = Astro.props;
+---
+
+<div class="squad-stats" data-squad-stats>
+  <header class="squad-stats__header">
+    <h2 id="squad-stats-heading">Kader in Zahlen</h2>
+    <p>Die interessantesten Fakten zum aktuellen Kader auf einen Blick.</p>
+  </header>
+  <ul class="squad-stats__grid">
+    {
+      stats.map((stat) => (
+        <li class="squad-stat" data-squad-stat={stat.key}>
+          <span class="squad-stat__icon" aria-hidden="true">
+            <Icon name={stat.icon} size={20} />
+          </span>
+          <p class="squad-stat__value">{stat.value}</p>
+          <p class="squad-stat__label">{stat.label}</p>
+          {stat.detail.length > 0 && (
+            <p class="squad-stat__detail">
+              {stat.detail.map((segment) =>
+                segment.type === 'player' ? (
+                  <a href={`/kader/${segment.player.slug}`}>
+                    {segment.player.name}
+                  </a>
+                ) : (
+                  <span>{segment.text}</span>
+                ),
+              )}
+            </p>
+          )}
+        </li>
+      ))
+    }
+  </ul>
+</div>

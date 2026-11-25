@@ -1,0 +1,48 @@
+---
+interface Props {
+  eyebrow: string;
+  description: string;
+  confirmLabel: string;
+  confirmField?: string;
+}
+
+const {
+  eyebrow,
+  description,
+  confirmLabel,
+  confirmField = 'confirm_delete',
+} = Astro.props;
+---
+
+<dialog
+  class="editor-dialog admin-delete-dialog"
+  data-admin-delete-dialog
+  aria-labelledby="admin-delete-dialog-title"
+  aria-describedby="admin-delete-dialog-description"
+>
+  <span class="editor-dialog__eyebrow" data-admin-delete-eyebrow>{eyebrow}</span
+  >
+  <h2 id="admin-delete-dialog-title" data-admin-delete-title></h2>
+  <p id="admin-delete-dialog-description" data-admin-delete-description>
+    {description}
+  </p>
+  <form class="editor-dialog__form" method="post" data-admin-delete-form>
+    <input type="hidden" name={confirmField} data-admin-delete-confirm />
+    <slot name="fields" />
+    <div class="editor-dialog__actions">
+      <button
+        type="button"
+        class="editor-dialog__cancel"
+        data-admin-delete-cancel
+      >
+        Abbrechen
+      </button>
+      <button
+        type="submit"
+        class="editor-dialog__submit admin-delete-dialog__submit"
+      >
+        {confirmLabel}
+      </button>
+    </div>
+  </form>
+</dialog>

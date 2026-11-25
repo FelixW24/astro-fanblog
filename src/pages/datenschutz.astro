@@ -1,0 +1,290 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Datenschutz | Astro Fanblog"
+  description="Datenschutzerklärung für den unabhängigen Fanblog Astro Fanblog."
+>
+  <header class="page-hero shell">
+    <span class="overline">Rechtliche Angaben</span>
+    <PageHeading>Datenschutzerklärung</PageHeading>
+    <p>Wie Astro Fanblog personenbezogene Daten verarbeitet.</p>
+  </header>
+
+  <section class="section shell legal-content" aria-labelledby="verantwortlich">
+    <h2 id="verantwortlich">1. Verantwortlicher</h2>
+    <address>
+      Max Mustermann<br />
+      Musterstraße 1<br />
+      12345 Musterstadt<br />
+      E-Mail: <a href="mailto:kontakt@example.com">kontakt@example.com</a>
+    </address>
+
+    <h2>2. Aufruf der Website und Server-Protokolle</h2>
+    <p>
+      Beim Aufruf der Website verarbeitet die von uns genutzte
+      Server-Infrastruktur technisch erforderliche Verbindungsdaten. Als
+      Hosting-Dienstleister setzen wir einen Anbieter mit Server-Standort in
+      Deutschland ein (Angaben im Impressum). Dazu
+      können IP-Adresse, Datum und Uhrzeit des Zugriffs, aufgerufene Adresse,
+      übertragene Datenmenge, HTTP-Status, Referrer sowie Browser- und
+      Betriebssystemangaben gehören.
+    </p>
+    <p>
+      Die Verarbeitung ist erforderlich, um die Website auszuliefern, ihre
+      Stabilität und Sicherheit zu gewährleisten und Missbrauch abzuwehren.
+      Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Unser berechtigtes
+      Interesse liegt im sicheren und funktionsfähigen Betrieb dieses Angebots.
+      Protokolldaten werden grundsätzlich nach spätestens 14 Tagen gelöscht,
+      sofern ein sicherheitsrelevantes Ereignis nicht eine längere Aufbewahrung
+      zur Aufklärung oder Rechtsverfolgung erfordert.
+    </p>
+
+    <h2>3. Selbst betriebene Datenbank- und Anmeldeinfrastruktur</h2>
+    <p>
+      Für Datenbank- und Anmeldefunktionen setzen wir eine selbst betriebene
+      Supabase-Instanz auf angemieteter Server-Infrastruktur ein. Nach Angaben
+      des Hosting-Anbieters befinden sich die Server in Deutschland.
+      Personenbezogene Daten aus Datenbank und
+      Authentifizierung werden damit innerhalb Deutschlands gespeichert und
+      verarbeitet. Für diese Funktionen findet nach unserem Betriebsmodell keine
+      Übermittlung an Supabase, Inc. als gehosteten Datenbank- oder
+      Authentifizierungsdienst statt.
+    </p>
+    <p>
+      Öffentliche Blog-Inhalte werden serverseitig aus der Datenbank abgerufen.
+      Der Browser eines normalen Blogbesuchers baut dabei keine direkte
+      Verbindung zur Datenbank- oder Authentifizierungsinstanz auf.
+    </p>
+    <p>
+      Beim geschützten Redaktionszugang und bei Leserkonten werden insbesondere
+      E-Mail-Adresse, Anmeldedaten, Sitzungskennungen sowie technische
+      Verbindungsdaten verarbeitet. Dies dient der Authentifizierung, der
+      Absicherung geschützter Bereiche und der Verwaltung der jeweils
+      freigeschalteten Funktionen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b
+      DSGVO, soweit die Verarbeitung zur Bereitstellung des angeforderten Kontos
+      und seiner Funktionen erforderlich ist, und im Übrigen Art. 6 Abs. 1 lit.
+      f DSGVO für den sicheren Betrieb und die Missbrauchsabwehr.
+    </p>
+    <p>
+      Konto- und Sitzungsdaten werden gelöscht, sobald sie für den jeweiligen
+      Zugang nicht mehr benötigt werden und keine gesetzlichen
+      Aufbewahrungspflichten oder berechtigten Sicherheitsinteressen
+      entgegenstehen.
+    </p>
+
+    <h2>4. Lokale Speicherung und technisch notwendige Cookies</h2>
+    <p>
+      Astro Fanblog setzt keine Analyse-, Marketing- oder Tracking-Cookies ein. Ein
+      Einwilligungsbanner ist deshalb derzeit nicht erforderlich.
+    </p>
+    <dl>
+      <dt>Farbmodus und Menüansicht</dt>
+      <dd>
+        Nach Ihrer Auswahl speichert der Browser Farbmodus und Menüansicht lokal
+        auf Ihrem Gerät. Diese Einstellungen werden nicht an uns übermittelt und
+        bleiben gespeichert, bis Sie die Website-Daten im Browser löschen.
+      </dd>
+      <dt>Redaktionsbereich</dt>
+      <dd>
+        Für angemeldete Redaktionsmitglieder sind Sitzungs-Cookies zur sicheren
+        Anmeldung erforderlich. Außerdem können Menüeinstellung und freiwillig
+        gespeicherte Artikelentwürfe lokal im Browser abgelegt werden.
+      </dd>
+      <dt>Leserkonto</dt>
+      <dd>
+        Erst wenn Sie die Anmeldung, Registrierung oder das Zurücksetzen eines
+        Passworts ausdrücklich anfordern, werden notwendige
+        Authentifizierungs-Sitzungscookies (sb-…-auth-token, gegebenenfalls in
+        mehreren Teilen, sowie ein kurzzeitig benötigter PKCE-Prüfwert) gesetzt.
+        Sie sind für JavaScript nicht lesbar (HttpOnly), werden im
+        Produktivbetrieb nur über HTTPS übertragen (Secure) und verwenden
+        SameSite=Lax. Die Cookies haben keine dauerhafte Browser-Laufzeit. Sie
+        werden beim Abmelden entfernt; ein Browser kann sie bei der
+        Sitzungswiederherstellung erneut laden. Eine gesonderte
+        Tracking-Einwilligung ist hierfür nicht erforderlich (§ 25 Abs. 2 Nr. 2
+        TDDDG).
+      </dd>
+    </dl>
+    <p>
+      Diese Speicherungen sind erforderlich, um die jeweils ausdrücklich
+      gewünschten Darstellungs- und Anmeldefunktionen bereitzustellen. Sie
+      erfolgen nach § 25 Abs. 2 Nr. 2 TDDDG; soweit dabei personenbezogene Daten
+      verarbeitet werden, gelten die jeweils in dieser Datenschutzerklärung
+      genannten Rechtsgrundlagen.
+    </p>
+
+    <h2>5. Leserkonten und Kommentare</h2>
+    <p>
+      Bei der Registrierung verarbeiten wir zunächst Ihre E-Mail-Adresse. Die
+      selbst betriebene Authentifizierungsinstanz verwaltet das Passwort
+      geschützt als Passwort-Hash; wir speichern kein Klartextpasswort in den
+      Profildaten. Nach der Bestätigung Ihrer E-Mail-Adresse erfassen wir bei
+      der ersten Anmeldung im Profil-Wizard Ihren Namen, Ihr Geburtsdatum, Ihren
+      Username und das gewählte Standard-Icon. Die Bestätigung der
+      Datenschutzhinweise wird mit einem Zeitstempel dokumentiert. Das Konto
+      dient dem Schreiben und Beantworten von Kommentaren sowie deren Bewertung.
+      Rechtsgrundlage für die Bereitstellung dieser Funktionen ist Art. 6 Abs. 1
+      lit. b DSGVO.
+    </p>
+    <p>
+      Öffentlich sichtbar sind Username, Standard-Icon, Kommentare, Antworten,
+      Veröffentlichungszeitpunkt und zusammengefasste Like-/Dislike-Zahlen.
+      Name, Geburtsdatum, E-Mail und einzelne Stimmabgaben sind nicht
+      öffentlich. Eigene Profilbilder werden nicht erhoben. Kontodaten bleiben
+      bis zur Löschung des Kontos gespeichert. Sie können Ihr Konto im
+      Profilbereich nach Bestätigung mit E-Mail-Adresse und aktuellem Passwort
+      löschen. Bei eingerichteter Zwei-Faktor-Authentifizierung ist zusätzlich
+      ein Authenticator-Code erforderlich. Anschließend senden wir Ihnen eine
+      Bestätigungsmail; gelöscht wird das Konto erst, wenn Sie den Link darin
+      öffnen und die Löschung bestätigen. Auskunft und Berichtigung können Sie
+      unter kontakt@example.com anfordern. Bei der Kontolöschung löschen wir Ihre
+      Konto- und Profildaten. Bereits veröffentlichte Kommentare bleiben ohne
+      Zuordnung zu Ihrem Konto anonymisiert bestehen und werden als „Gelöschter
+      Nutzer“ angezeigt. Bewertungen, Sperren und sonstige kontobezogene Daten
+      sowie nicht veröffentlichte Kommentare werden gelöscht. Antworten anderer
+      Nutzer auf veröffentlichte Kommentare bleiben erhalten.
+    </p>
+    <p>
+      Kommentare mit Treffern aus unserer Wortliste werden vor der
+      Veröffentlichung durch die Redaktion geprüft. Freigaben, Ablehnungen und
+      befristete Kommentarsperren werden mit Zeitpunkt und zuständigem
+      Redaktionskonto protokolliert. Zurückgehaltene und abgelehnte Kommentare
+      sowie das Protokoll sind ausschließlich der Redaktion zugänglich. Bei
+      einer Kontolöschung werden auch die zugehörigen Moderationseinträge und
+      Sperren entfernt.
+    </p>
+
+    <h2>6. Newsletter</h2>
+    <p>
+      Wenn Sie sich über das Willkommens-Modal für unseren Newsletter anmelden,
+      verarbeiten wir Ihre E-Mail-Adresse ausschließlich zum Zweck des Versands
+      von Newsletter-E-Mails. Rechtsgrundlage ist Ihre Einwilligung gemäß Art. 6
+      Abs. 1 lit. a DSGVO.
+    </p>
+    <p>
+      Die Anmeldung erfolgt per Double-Opt-in: Erst wenn Sie auf den
+      Bestätigungslink in der E-Mail klicken, die wir Ihnen nach der Anmeldung
+      zusenden, wird Ihre Adresse aktiv. Wir speichern zu jedem Abonnement den
+      Zeitpunkt der Anmeldung und der Bestätigung sowie den Wortlaut des
+      seinerzeitigen Einwilligungshinweises. Bis zur Bestätigung und nach einer
+      Abmeldung erhalten Sie keine Newsletter.
+    </p>
+    <p>
+      Bestätigungslinks sind längstens sieben Tage gültig. Wir speichern Ihre
+      Newsletter-Daten, solange das Abonnement besteht. Anmeldungen ohne
+      Bestätigung löschen wir automatisch 30 Tage nach der Anmeldung. Nach einer
+      Abmeldung speichern wir Ihre E-Mail-Adresse mit dem Abmeldezeitpunkt,
+      solange unser berechtigtes Interesse besteht, Sie nicht versehentlich
+      erneut anzuschreiben; diese Einträge löschen wir spätestens drei Jahre
+      nach der Abmeldung. Sie können die Löschung Ihres Eintrags auch jederzeit
+      früher verlangen.
+    </p>
+    <p>
+      Ihre E-Mail-Adresse mit Status und Zeitstempeln können Sie als
+      Betroffene(r) bei uns abrufen; die Redaktion kann die Abonnentenliste im
+      geschützten Redaktionsbereich einsehen und exportieren. Jeder Export wird
+      protokolliert.
+    </p>
+    <p>
+      Jede Newsletter-E-Mail enthält einen signierten Abmeldelink: Ein Klick
+      genügt, um sich abzumelden – ohne Anmeldung und ohne weiteres Formular.
+      Zusätzlich versenden wir den List-Unsubscribe-Header mit One-Click (RFC
+      8058), den kompatible Mailprogramme direkt als Abmelde-Schaltfläche
+      anbieten. Die Abmeldung wird sofort wirksam und mit Zeitstempel
+      gespeichert; abgemeldete Adressen werden nicht erneut angeschrieben. Sie
+      können die vollständige Löschung Ihres Newsletter-Eintrags jederzeit über <a
+        href="mailto:kontakt@example.com">kontakt@example.com</a
+      >{' '}
+      verlangen.
+    </p>
+    <p>
+      Der Versand erfolgt über unser eigenes No-Reply-Postfach auf
+      Server-Infrastruktur in Deutschland (siehe Abschnitte 3 und 9). Eine
+      Weitergabe Ihrer E-Mail-Adresse an Dritte findet nicht statt.
+    </p>
+
+    <h2>7. Externe Bilder und Links</h2>
+    <p>
+      Einzelne Beiträge können Bilder von externen Servern einbinden. Beim Laden
+      eines solchen Bildes stellt Ihr Browser eine Verbindung zum jeweiligen
+      Anbieter her. Dabei werden insbesondere Ihre IP-Adresse und technische
+      Verbindungsdaten übermittelt. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+      DSGVO; unser berechtigtes Interesse liegt in der anschaulichen
+      redaktionellen Berichterstattung. Externe Links werden erst aufgerufen,
+      wenn Sie diese anklicken. Für die anschließende Datenverarbeitung ist der
+      jeweilige Drittanbieter verantwortlich.
+    </p>
+
+    <h2>8. Kontaktaufnahme</h2>
+    <p>
+      Wenn Sie uns per E-Mail kontaktieren, verarbeiten wir Ihre Absenderdaten
+      und den Inhalt der Nachricht, um Ihr Anliegen zu beantworten.
+      Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO oder, bei vertragsbezogenen
+      Anfragen, Art. 6 Abs. 1 lit. b DSGVO. Wir löschen die Daten, wenn das
+      Anliegen abschließend bearbeitet ist und keine gesetzlichen
+      Aufbewahrungspflichten oder berechtigten Gründe für eine weitere
+      Speicherung bestehen.
+    </p>
+
+    <h2>9. Empfänger und Verarbeitung in Deutschland</h2>
+    <p>
+      Für das Hosting setzen wir einen Anbieter mit Server-Standort in
+      Deutschland ein (Angaben im Impressum). Der Anbieter stellt die
+      Server-Infrastruktur bereit, auf der die Website sowie unsere selbst
+      betriebene Datenbank- und Authentifizierungsinstanz ausgeführt werden.
+      Nach Angaben des Hosting-Anbieters befinden sich die hierfür genutzten
+      Server in Deutschland.
+    </p>
+    <p>
+      Darüber hinaus erhalten nur Personen und Dienstleister personenbezogene
+      Daten, die für Betrieb, Infrastruktur oder E-Mail-Versand eingesetzt
+      werden, soweit dies für die genannten Zwecke erforderlich ist. Soweit ein
+      Dienstleister personenbezogene Daten in unserem Auftrag verarbeitet,
+      gelten die Anforderungen des Art. 28 DSGVO.
+    </p>
+    <p>
+      Eine Übermittlung personenbezogener Daten in ein Drittland erfolgt nur,
+      wenn sie für einen konkret eingesetzten Dienst erforderlich ist und die
+      gesetzlichen Voraussetzungen der Art. 44 ff. DSGVO erfüllt sind. Eine
+      darüber hinausgehende Weitergabe erfolgt nur aufgrund einer gesetzlichen
+      Pflicht oder mit Ihrer Einwilligung.
+    </p>
+
+    <h2>10. Ihre Rechte</h2>
+    <p>Unter den gesetzlichen Voraussetzungen haben Sie das Recht auf:</p>
+    <ul>
+      <li>Auskunft über Ihre verarbeiteten personenbezogenen Daten,</li>
+      <li>Berichtigung unrichtiger oder unvollständiger Daten,</li>
+      <li>Löschung oder Einschränkung der Verarbeitung,</li>
+      <li>Datenübertragbarkeit,</li>
+      <li>
+        Widerspruch gegen Verarbeitungen, die auf Art. 6 Abs. 1 lit. f DSGVO
+        beruhen, und
+      </li>
+      <li>
+        Widerruf einer erteilten Einwilligung mit Wirkung für die Zukunft.
+      </li>
+    </ul>
+    <p>
+      Außerdem können Sie sich nach Art. 77 DSGVO bei einer
+      Datenschutz-Aufsichtsbehörde beschweren. Für Nordrhein-Westfalen ist dies
+      die Landesbeauftragte für Datenschutz und Informationsfreiheit NRW,
+      Kavalleriestraße 2–4, 40213 Düsseldorf,
+      <a href="https://www.ldi.nrw.de/" rel="noopener noreferrer"
+        >www.ldi.nrw.de</a
+      >.
+    </p>
+
+    <h2>11. Automatisierte Entscheidungen</h2>
+    <p>
+      Eine automatisierte Entscheidungsfindung einschließlich Profiling findet
+      nicht statt.
+    </p>
+
+    <h2>12. Stand</h2>
+    <p>Stand: 18. November 2026</p>
+  </section>
+</BaseLayout>

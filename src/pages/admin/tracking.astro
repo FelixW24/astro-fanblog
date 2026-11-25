@@ -1,0 +1,268 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import CategoryLabel from '../../components/CategoryLabel.astro';
+import TrackingChart from '../../components/admin/TrackingChart.astro';
+import { categories, formatDate } from '../../lib/content';
+import { getAdmin } from '../../lib/admin';
+import {
+  TRACKING_PERIODS,
+  bucketByDay,
+  bucketByWeek,
+  countViewsByArticle,
+  parseTrackingFilters,
+  periodStartIso,
+} from '../../lib/tracking';
+
+const { supabase, user } = await getAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+
+const filters = parseTrackingFilters(Astro.url.searchParams);
+const startIso = periodStartIso(filters.days);
+const chartDays = 30;
+
+const baseSelect = 'id, title, slug, category, status, published_at, created_at';
+const viewsQuery = supabase
+  .from('article_views')
+  .select('article_id, viewed_at, visitor_key');
+const pagesQuery = supabase
+  .from('page_views')
+  .select('path, viewed_at, visitor_key');
+if (startIso) {
+  viewsQuery.gte('viewed_at', startIso);
+  pagesQuery.gte('viewed_at', startIso);
+}
+
+const [articlesResult, articleViewsResult, pageViewsResult] =
+  await Promise.all([
+    supabase
+      .from('articles')
+      .select(baseSelect)
+      .order('published_at', { ascending: false, nullsFirst: false }),
+    viewsQuery,
+    pagesQuery,
+  ]);
+
+if (articlesResult.error || articleViewsResult.error || pageViewsResult.error) {
+  Astro.response.status = 500;
+}
+
+const articles = articlesResult.data ?? [];
+const articleViews = articleViewsResult.data ?? [];
+const pageViews = pageViewsResult.data ?? [];
+
+const viewsByArticle = countViewsByArticle(articleViews);
+const totalArticleViews = articleViews.length;
+const totalPageViews = pageViews.length;
+const uniqueVisitors = new Set(pageViews.map((row) => row.visitor_key)).size;
+
+const filteredArticles = articles.filter((article) => {
+  if (filters.category && article.category !== filters.category) return false;
+  if (filters.status && article.status !== filters.status) return false;
+  if (
+    filters.search &&
+    !article.title.toLowerCase().includes(filters.search)
+  )
+    return false;
+  return true;
+});
+
+const chartBuckets = bucketByDay(pageViews, chartDays);
+// Historie in 7-Tage-Blöcken: maximal 50 Wochen (bei „Gesamt“), sonst der gewählte Zeitraum.
+const historyWeekCount =
+  filters.days === 0 ? 50 : Math.min(50, Math.ceil(filters.days / 7));
+const historyWeeks = [...bucketByWeek(pageViews, historyWeekCount)].reverse();
+const periodLabel =
+  TRACKING_PERIODS.find((period) => period.days === filters.days)?.label ??
+  '30 Tage';
+---
+
+<AdminLayout title="Tracking" userEmail={user.email ?? 'Admin'}>
+ <div class="tracking-page">
+  <header class="admin-page-heading admin-page-heading--compact">
+    <div>
+      <h1>Tracking</h1>
+      <p>Aufrufe und Besucher der Website – Zeitraum: {periodLabel}.</p>
+    </div>
+  </header>
+
+  <div class="admin-stats">
+    <div><span>Besucher gesamt</span><strong>{uniqueVisitors}</strong></div>
+    <div><span>Seitenaufrufe</span><strong>{totalPageViews}</strong></div>
+    <div><span>Beitrags-Views</span><strong>{totalArticleViews}</strong></div>
+    <div><span>Beiträge gesamt</span><strong>{articles.length}</strong></div>
+  </div>
+
+  <section class="editor-panel tracking-overview" aria-label="Besucher-Verlauf">
+    <h2>Website-Besucher – Verlauf</h2>
+    <div class="tracking-charts">
+      <TrackingChart
+        title={`Seitenaufrufe pro Tag (letzte ${chartDays} Tage)`}
+        buckets={chartBuckets}
+        metric="views"
+      />
+      <TrackingChart
+        title={`Eindeutige Besucher pro Tag (letzte ${chartDays} Tage)`}
+        buckets={chartBuckets}
+        metric="visitors"
+      />
+    </div>
+  </section>
+
+  <section class="editor-panel" aria-label="Historie">
+    <h2>Historie</h2>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Woche (letzte 7 Tage)</th>
+            <th>Seitenaufrufe</th>
+            <th>Besucher</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            historyWeeks.slice(0, 1).map((bucket) => (
+              <tr>
+                <td>{bucket.label}</td>
+                <td>{bucket.views}</td>
+                <td>{bucket.visitors}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <details class="history-more">
+      <summary>
+        Alle Wochen aufklappen (bis zu {historyWeeks.length} Einträge)
+      </summary>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Woche</th><th>Seitenaufrufe</th><th>Besucher</th></tr>
+          </thead>
+          <tbody>
+            {
+              historyWeeks.map((bucket) => (
+                <tr>
+                  <td>{bucket.label}</td>
+                  <td>{bucket.views}</td>
+                  <td>{bucket.visitors}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <form class="admin-filters" method="get">
+    <label
+      ><span class="sr-only">Beiträge durchsuchen</span><input
+        type="search"
+        name="suche"
+        value={Astro.url.searchParams.get('suche') ?? ''}
+        placeholder="Titel suchen …"
+      /></label
+    >
+    <label
+      ><span class="sr-only">Kategorie</span><select name="kategorie"
+        ><option value="">Alle Kategorien</option>{
+          categories.map((category) => (
+            <option
+              value={category.slug}
+              selected={filters.category === category.slug}
+            >
+              {category.label}
+            </option>
+          ))
+        }</select
+      ></label
+    >
+    <label
+      ><span class="sr-only">Status</span><select name="status"
+        ><option value="">Alle Status</option><option
+          value="published"
+          selected={filters.status === 'published'}>Veröffentlicht</option
+        ><option value="draft" selected={filters.status === 'draft'}
+          >Entwurf</option
+        ><option value="archived" selected={filters.status === 'archived'}
+          >Archiviert</option
+        ></select
+      ></label
+    >
+    <label
+      ><span class="sr-only">Zeitraum</span><select name="zeitraum"
+        >{
+          TRACKING_PERIODS.map((period) => (
+            <option
+              value={period.value}
+              selected={filters.days === period.days}
+            >
+              {period.label}
+            </option>
+          ))
+        }</select
+      ></label
+    >
+    <button type="submit">Filtern</button>
+    {
+      (filters.category || filters.status || filters.search || filters.days !== 30) && (
+        <a href="/admin/tracking">Zurücksetzen</a>
+      )
+    }
+  </form>
+
+  <section class="admin-table-wrap" aria-label="Beiträge mit Views">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Beitrag</th>
+          <th>Kategorie</th>
+          <th>Status</th>
+          <th>Datum</th>
+          <th>Views ({periodLabel})</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          filteredArticles.map((article) => (
+            <tr>
+              <td>
+                <strong>{article.title}</strong>
+                <small>
+                  <a href={`/beitraege/${article.slug}`}>/beitraege/{article.slug}</a>
+                </small>
+              </td>
+              <td>
+                <CategoryLabel category={article.category} />
+              </td>
+              <td>
+                <span class={`status-pill status-${article.status}`}>
+                  {article.status === 'published'
+                    ? 'Veröffentlicht'
+                    : article.status === 'draft'
+                      ? 'Entwurf'
+                      : 'Archiviert'}
+                </span>
+              </td>
+              <td>{formatDate(article.published_at ?? article.created_at)}</td>
+              <td>
+                <strong>{viewsByArticle.get(article.id) ?? 0}</strong>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+  <p class="tracking-note">
+    <small
+      >Ein View zählt, wenn ein Besucher mindestens 30 Sekunden auf der
+      Beitragsseite verbringt. Pro Browser und Beitrag wird nur ein View
+      gezählt.</small
+    >
+  </p>
+ </div>
+</AdminLayout>

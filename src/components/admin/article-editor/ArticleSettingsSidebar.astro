@@ -1,0 +1,239 @@
+---
+import { categories } from '../../../lib/content';
+import type { ArticleFormValues } from '../../../lib/admin';
+
+interface Props {
+  values: ArticleFormValues;
+  mode: 'create' | 'edit';
+  articleId?: number;
+}
+
+const { values, mode, articleId } = Astro.props;
+---
+
+<aside class="editor-sidebar">
+  <section class="editor-panel publish-panel" data-wizard-step="4" hidden>
+    <div class="section-heading section-heading--small">
+      <div>
+        <span class="section-kicker">Workflow</span>
+        <h2>Veröffentlichen</h2>
+      </div>
+      <span class={`status-pill status-${values.status}`} id="status-preview">
+        {
+          values.status === 'published'
+            ? 'Veröffentlicht'
+            : values.status === 'archived'
+              ? 'Archiviert'
+              : 'Entwurf'
+        }
+      </span>
+    </div>
+    <label class="field">
+      <span>Status<span class="required-marker" aria-hidden="true"></span></span
+      >
+      <select name="status" id="article-status" required>
+        <option value="draft" selected={values.status === 'draft'}
+          >Entwurf</option
+        >
+        <option value="published" selected={values.status === 'published'}
+          >Veröffentlicht</option
+        >
+        <option value="archived" selected={values.status === 'archived'}
+          >Archiviert</option
+        >
+      </select>
+    </label>
+    <label class="field">
+      <span>Zeitpunkt</span>
+      <div class="date-field">
+        <input
+          type="datetime-local"
+          name="published_at"
+          id="published-at"
+          value={values.published_at}
+        />
+        <button type="button" data-publish-now>Jetzt</button>
+      </div>
+      <small
+        >Berliner Zeit. Zukünftige Beiträge werden zum gewählten Zeitpunkt
+        sichtbar. Bei der Zeitumstellung im Herbst gilt für die doppelte Stunde
+        die Winterzeit.</small
+      >
+    </label>
+    {
+      mode === 'edit' && values.status === 'published' && (
+        <a
+          class="admin-secondary-button"
+          href={`/beitraege/${values.slug}`}
+          target="_blank"
+        >
+          Beitrag ansehen ↗
+        </a>
+      )
+    }
+  </section>
+
+  <section class="editor-panel editor-checklist" data-wizard-step="4" hidden>
+    <h2>Redaktionscheck</h2>
+    <ul>
+      <li data-check="title"><span></span>Titel & Slug vollständig</li>
+      <li data-check="excerpt"><span></span>Teaser aussagekräftig</li>
+      <li data-check="content"><span></span>Mindestens 100 Wörter</li>
+      <li data-check="image"><span></span>Bild mit Alternativtext</li>
+      <li data-check="seo"><span></span>SEO-Daten optimiert</li>
+    </ul>
+    <small>Bild und eigene SEO-Daten sind Empfehlungen, keine Pflicht.</small>
+  </section>
+
+  <section class="editor-panel" data-wizard-step="3" hidden>
+    <h2>Einordnung</h2>
+    <label class="field">
+      <span
+        >Kategorie<span class="required-marker" aria-hidden="true"></span></span
+      >
+      <select name="category" required>
+        {
+          categories.map((category) => (
+            <option
+              value={category.slug}
+              selected={values.category === category.slug}
+            >
+              {category.label}
+            </option>
+          ))
+        }
+      </select>
+    </label>
+    <label class="field">
+      <span>Autor<span class="required-marker" aria-hidden="true"></span></span>
+      <input name="author" value={values.author} maxlength="120" required />
+    </label>
+    <label class="field">
+      <span
+        >Schlagwörter <small id="tag-count">{values.tags.length}/10</small
+        ></span
+      >
+      <input
+        id="article-tags"
+        name="tags"
+        value={values.tags.join(', ')}
+        placeholder="Taktik, Bundesliga, Geißböcke"
+      />
+      <small>Kommagetrennt, maximal 10 Schlagwörter.</small>
+    </label>
+    <label class="field">
+      <span
+        >Lesezeit in Minuten<span class="required-marker" aria-hidden="true"
+        ></span></span
+      >
+      <div class="read-time-field">
+        <input
+          id="read-minutes"
+          type="number"
+          name="read_minutes"
+          value={values.read_minutes}
+          min="1"
+          max="60"
+          required
+        />
+        <button type="button" data-use-read-time>Berechnen</button>
+      </div>
+    </label>
+  </section>
+
+  <section class="editor-panel media-panel" data-wizard-step="3" hidden>
+    <h2>Titelbild</h2>
+    <div class="cover-preview" data-cover-preview>
+      <span>Bildvorschau</span>
+      <img alt="" hidden />
+    </div>
+    <label class="field">
+      <span
+        >Bild-URL<span class="required-marker" aria-hidden="true"></span></span
+      >
+      <input
+        id="cover-image-url"
+        type="url"
+        name="cover_image_url"
+        data-required-pair="cover_image"
+        required={Boolean(values.cover_image_url || values.cover_image_alt)}
+        value={values.cover_image_url}
+        placeholder="https://…"
+      />
+    </label>
+    <label class="field">
+      <span
+        >Alternativtext<span class="required-marker" aria-hidden="true"
+        ></span></span
+      >
+      <textarea
+        id="cover-image-alt"
+        name="cover_image_alt"
+        data-required-pair="cover_image"
+        required={Boolean(values.cover_image_url || values.cover_image_alt)}
+        rows="3"
+        minlength="5"
+        maxlength="240"
+        placeholder="Was ist auf dem Bild zu sehen?"
+        >{values.cover_image_alt}</textarea
+      >
+    </label>
+    <div class="field">
+      <span>Default-Bild</span>
+      <label class="admin-switch">
+        <input
+          type="checkbox"
+          name="cover_disabled"
+          id="cover-disabled"
+          class="admin-switch__input"
+          checked={values.cover_disabled}
+        />
+        <span class="admin-switch__label">Default-Titelbild deaktivieren</span>
+        <span class="admin-switch__track" aria-hidden="true"></span>
+      </label>
+      <small
+        >Nur wirksam ohne eigene Bild-URL: Der Beitrag erscheint dann
+        komplett ohne Titelbild.</small
+      >
+    </div>
+  </section>
+
+  <section
+    class="editor-panel editor-panel--sources"
+    data-wizard-step="3"
+    hidden
+  >
+    <h2>Quellen</h2>
+    <label class="field">
+      <span
+        >Quellen-URLs <small id="source-count"
+          >{values.source_urls.length}/10</small
+        ></span
+      >
+      <textarea
+        id="source-urls"
+        name="source_urls"
+        rows="5"
+        placeholder={'https://…\nhttps://…'}
+        >{values.source_urls.join('\n')}</textarea
+      >
+      <small>Eine vollständige URL pro Zeile.</small>
+    </label>
+  </section>
+
+  {
+    mode === 'edit' && articleId && (
+      <section class="editor-panel danger-panel" data-wizard-step="4" hidden>
+        <h2>Gefahrenzone</h2>
+        <p>Gelöschte Beiträge können nicht wiederhergestellt werden.</p>
+        <button
+          class="admin-danger-button"
+          type="submit"
+          form={`delete-${articleId}`}
+        >
+          Beitrag löschen
+        </button>
+      </section>
+    )
+  }
+</aside>

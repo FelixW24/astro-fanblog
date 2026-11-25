@@ -1,0 +1,42 @@
+---
+import PageHeading from './PageHeading.astro';
+import ArticleCard from './ArticleCard.astro';
+import EmptyState from './EmptyState.astro';
+import { categories, type Article, type CategorySlug } from '../lib/content';
+import '../styles/public/category-overview.css';
+
+interface Props {
+  category: CategorySlug;
+  articles: Article[];
+  backendAvailable: boolean;
+}
+const { category, articles, backendAvailable } = Astro.props;
+const meta = categories.find((item) => item.slug === category)!;
+---
+
+<div class="category-overview">
+  <header class="page-hero category-overview__hero">
+    <div class="shell">
+      <PageHeading>{meta.label}</PageHeading>
+    </div>
+  </header>
+  <section class="shell category-overview__feed">
+    {
+      backendAvailable && articles.length > 0 ? (
+        <div class="article-grid">
+          {articles.map((article) => (
+            <ArticleCard article={article} />
+          ))}
+        </div>
+      ) : backendAvailable ? (
+        <EmptyState title="Noch keine Beiträge" />
+      ) : (
+        <EmptyState
+          technical
+          title="Beiträge sind gerade nicht erreichbar."
+          message="Bitte versuche es in ein paar Minuten noch einmal."
+        />
+      )
+    }
+  </section>
+</div>

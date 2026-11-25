@@ -1,0 +1,77 @@
+/* Shared editorial heading style for public pages. */
+.site-content .page-hero {
+  width: min(calc(100% - 32px), var(--page-max-width));
+  margin-inline: auto;
+  padding: 56px 24px 48px;
+  background: var(--color-canvas);
+  border-radius: var(--radius-heropanel);
+}
+.site-content .page-hero--home {
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .site-content .page-hero--home {
+    background: var(--color-canvas);
+  }
+}
+.site-content .page-hero > .shell {
+  width: auto;
+  margin-inline: 0;
+}
+.site-content .page-hero .next-match {
+  margin-top: 0;
+}
+.site-content
+  :is(
+    .page-hero,
+    .hero,
+    .article-heading,
+    .player-profile-intro,
+    .reader-panel,
+    .not-found
+  )
+  h1 {
+  margin: 16px 0;
+  font-size: clamp(30px, 4.5vw, 64px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.site-content :is(.page-hero, .article-heading, .not-found) > p,
+.site-content .reader-panel > h1 + p,
+.site-content .hero-intro {
+  max-width: 540px;
+  color: var(--color-ink-black);
+  font-size: 16px;
+  line-height: 1.5;
+}
+/* Tagline unter der Home-H1 dezenter in Grau statt Akzentfarbe. */
+.site-content .page-hero--home > p {
+  color: var(--color-slate);
+}
+.site-content .page-hero p {
+  margin-bottom: 0;
+}
+.site-content h1 .page-heading-period {
+  display: inline;
+  color: var(--color-blueprint-blue);
+}
+@media (max-width: 600px) {
+  .site-content .page-hero {
+    padding: 32px 20px;
+  }
+}
+@media (max-width: 620px) {
+  .site-content .page-hero {
+    width: min(calc(100% - 24px), var(--page-max-width));
+  }
+}
+
+.site-content .player-profile-intro h1 > span:nth-last-child(2) {
+  display: inline;
+}

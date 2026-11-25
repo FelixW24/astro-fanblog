@@ -1,0 +1,780 @@
+---
+import Icon from './Icon.astro';
+import {
+  defaultProfileSettingsSection,
+  findProfileSettingsSection,
+  profileSettingsGroups,
+} from '../lib/profile-settings';
+import type { IconName } from './Icon.astro';
+
+interface Props {
+  editorDenied?: boolean;
+}
+
+const { editorDenied = false } = Astro.props;
+
+const defaultSectionLabel =
+  findProfileSettingsSection(defaultProfileSettingsSection)?.item.label ?? '';
+
+const sectionIcons: Record<string, IconName> = {
+  'persoenliche-informationen': 'users',
+  'meine-kommentare': 'article',
+  passwort: 'lock',
+  darstellung: 'sun',
+  benachrichtigungen: 'mail',
+  'konto-loeschen': 'trash',
+  abmelden: 'external-link',
+};
+---
+
+<!-- Profil-Modal: öffnet sich aus der Sidebar und dem Kontomenü, statt eine
+     eigene Seite zu laden. Der Inhalt wird beim ersten Öffnen als Fragment
+     von /profil?ansicht=modal geladen (oder serverseitig mitgegeben). -->
+<dialog
+  class="profile-dialog"
+  data-profile-dialog
+  data-auto-open={editorDenied ? 'true' : undefined}
+  aria-labelledby="profile-dialog-kicker"
+>
+  <div class="profile-dialog__surface">
+    <header class="profile-dialog__header">
+      <div>
+        <p class="overline" id="profile-dialog-kicker">
+          Mein Profil<span class="profile-heading-period" aria-hidden="true"
+            >.</span
+          >
+        </p>
+        <h2 id="profile-dialog-title">
+          <span data-profile-dialog-section-title>{defaultSectionLabel}</span
+          ><span class="profile-heading-period" aria-hidden="true">.</span>
+        </h2>
+      </div>
+      <button
+        type="button"
+        class="profile-dialog__close"
+        data-profile-close
+        aria-label="Profil schließen">×</button
+      >
+    </header>
+    <div class="profile-dialog__body">
+      <nav
+        class="profile-dialog__nav"
+        aria-label="Profileinstellungen"
+        data-profile-nav
+      >
+        {
+          profileSettingsGroups.map((group) => (
+            <div class="profile-dialog__group">
+              <span class="profile-dialog__group-label">{group.label}</span>
+              <ul class="profile-dialog__items">
+                {group.items.map((item) => (
+                  <li>
+                    <button
+                      type="button"
+                      class="profile-dialog__nav-item"
+                      data-profile-nav-item
+                      data-profile-section-target={item.id}
+                      aria-current={
+                        item.id === defaultProfileSettingsSection
+                          ? 'true'
+                          : 'false'
+                      }
+                    >
+                      <span class="nav-icon" aria-hidden="true">
+                        <Icon name={sectionIcons[item.id]} size={16} />
+                      </span>
+                      <span class="profile-dialog__nav-label">
+                        {item.label}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+      <div class="profile-dialog__content" data-profile-content>
+        <slot name="settings">
+          <p class="profile-dialog__loading">Dein Profil wird geladen…</p>
+        </slot>
+      </div>
+    </div>
+    <!-- Toasts landen im offenen Modal in der Top-Layer, statt hinter dem
+         Backdrop zu verschwinden. -->
+    <div class="notification-stack" data-notification-stack></div>
+  </div>
+</dialog>
+
+<script>
+  import {
+    defaultProfileSettingsSection,
+    findProfileSettingsSection,
+  } from '../lib/profile-settings';
+  import {
+    announceThemeChange,
+    applyTheme,
+    readThemePreference,
+    storeThemePreference,
+    type ThemePreference,
+  } from '../scripts/theme-mode';
+  import {
+    dataSaverConnection,
+    dataSaverCookie,
+    readDataSaverPreference,
+    resolveDataSaverActive,
+    storeDataSaverEnabled,
+    systemDataSaverRequested,
+  } from '../lib/data-saver';
+  import { wireAvatarUpload } from '../scripts/profile-avatar';
+  import { showReaderToast } from '../scripts/reader-toast';
+  import { wirePasswordToggles } from '../scripts/password-toggle';
+  import { wireUsernameLiveCheck } from '../scripts/username-live-check';
+
+  const dialogs = [
+    ...document.querySelectorAll<HTMLDialogElement>('[data-profile-dialog]'),
+  ];
+
+  const isThemePreferenceValue = (value: string): value is ThemePreference =>
+    value === 'light' || value === 'dark' || value === 'system';
+
+  const setupDialog = (dialog: HTMLDialogElement) => {
+    const content = dialog.querySelector<HTMLElement>('[data-profile-content]');
+    if (!content) return;
+
+    let loaded = content.querySelector('[data-profile-settings]') !== null;
+    let lastTrigger: HTMLElement | null = null;
+    // Gewuenschte Sektion ueberlebt das Ersetzen des Inhalts beim Laden.
+    let activeSectionId: string | undefined;
+
+    const showLoading = () => {
+      const loading = document.createElement('p');
+      loading.className = 'profile-dialog__loading';
+      loading.textContent = 'Dein Profil wird geladen…';
+      content.replaceChildren(loading);
+    };
+
+    const showError = (message: string) => {
+      showReaderToast(message);
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'profile-dialog__retry';
+      retry.textContent = 'Erneut versuchen';
+      retry.addEventListener('click', () => void load());
+      content.replaceChildren(retry);
+    };
+
+    const syncThemePicker = () => {
+      const preference = readThemePreference() ?? 'dark';
+      for (const input of content.querySelectorAll<HTMLInputElement>(
+        'input[name="theme-preference"]',
+      ))
+        input.checked = input.value === preference;
+    };
+
+    const dataSaverActive = () =>
+      resolveDataSaverActive(
+        readDataSaverPreference(),
+        systemDataSaverRequested(),
+      );
+
+    const applyDataSaverMode = (enabled: boolean) => {
+      if (enabled) document.documentElement.dataset.dataSaver = 'on';
+      else delete document.documentElement.dataset.dataSaver;
+      try {
+        // Cookie, damit der Server kleinere Bilder ausliefern kann.
+        document.cookie = dataSaverCookie(enabled);
+      } catch {
+        // Ohne Cookie greift serverseitig nur der Save-Data-Header.
+      }
+      // Prerenderte Seiten tauschen die Bilder clientseitig (data-saver-images).
+      window.dispatchEvent(new CustomEvent('data-saver-changed'));
+    };
+
+    const dataSaverStatusText = () => {
+      const stored = readDataSaverPreference();
+      if (stored === 'on')
+        return 'Aktiv: Animationen, nicht-kritische Bilder und Tracking werden reduziert.';
+      if (stored === null && systemDataSaverRequested())
+        return 'Aktiv über die Datenspar-Einstellung deines Browsers.';
+      return 'Animationen, nicht-kritische Bilder und Tracking werden geladen.';
+    };
+
+    const syncDataSaverStatus = () => {
+      const status = content.querySelector<HTMLElement>(
+        '[data-data-saver-status]',
+      );
+      if (status) status.textContent = dataSaverStatusText();
+    };
+
+    const syncDataSaverToggle = () => {
+      const toggle = content.querySelector<HTMLInputElement>(
+        '[data-data-saver-toggle]',
+      );
+      if (toggle) toggle.checked = dataSaverActive();
+      syncDataSaverStatus();
+    };
+
+    const wireDeletionForm = () => {
+      const form = content.querySelector<HTMLFormElement>(
+        '[data-account-deletion-form]',
+      );
+      const details = content.querySelector<HTMLDetailsElement>(
+        '[data-account-deletion]',
+      );
+      const submit = form?.querySelector<HTMLButtonElement>(
+        '[data-account-deletion-submit]',
+      );
+      const cancel = form?.querySelector<HTMLButtonElement>(
+        '[data-account-deletion-cancel]',
+      );
+      if (!form || !submit) return;
+      const update = () => {
+        submit.disabled = !form.checkValidity();
+      };
+      // Progressive Enhancement bleibt aktiv: native Constraints greifen weiter.
+      form.addEventListener('input', update);
+      form.addEventListener('change', update);
+      update();
+      cancel?.addEventListener('click', () => {
+        form.reset();
+        update();
+        if (details) {
+          details.open = false;
+          details.querySelector('summary')?.focus();
+        }
+      });
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        const fail = (message: string) => {
+          showReaderToast(message);
+          submit.disabled = false;
+          submit.removeAttribute('aria-busy');
+        };
+        // getAttribute statt form.action: Ein Feld mit name="action" überdeckt
+        // die Action-Property des Formulars.
+        const action = form.getAttribute('action');
+        if (!action) {
+          fail(
+            'Die Kontolöschung ist gerade nicht verfügbar. Bitte versuche es später erneut.',
+          );
+          return;
+        }
+        fetch(action, { method: 'POST', body: new FormData(form) })
+          .then(async (response) => {
+            const data = (await response.json().catch(() => null)) as {
+              error?: string;
+              message?: string;
+            } | null;
+            if (!response.ok || !data || data.error) {
+              fail(
+                data?.error ??
+                  'Die Kontolöschung ist gerade nicht verfügbar. Bitte versuche es später erneut.',
+              );
+              return;
+            }
+            // Der Antrag ist nur verschickt: Das Konto bleibt bestehen, bis
+            // der Link aus der Bestätigungsmail geöffnet und bestätigt wird.
+            form.reset();
+            update();
+            submit.removeAttribute('aria-busy');
+            if (details) details.open = false;
+            showReaderToast(
+              data.message ??
+                'Wir haben dir eine Bestätigungsmail geschickt. Dein Konto wird erst nach der Bestätigung gelöscht.',
+            );
+          })
+          .catch(() => {
+            fail(
+              'Die Kontolöschung ist gerade nicht verfügbar. Bitte versuche es später erneut.',
+            );
+          });
+      });
+    };
+
+    const wirePasswordForm = () => {
+      const form = content.querySelector<HTMLFormElement>(
+        '[data-password-form]',
+      );
+      const verify = form?.querySelector<HTMLButtonElement>(
+        '[data-password-verify]',
+      );
+      const current = form?.querySelector<HTMLInputElement>(
+        '[name="current_password"]',
+      );
+      const newFields = form?.querySelector<HTMLFieldSetElement>(
+        '[data-password-new]',
+      );
+      const submit = form?.querySelector<HTMLButtonElement>(
+        '[data-password-submit]',
+      );
+      if (!form || !verify || !current || !newFields || !submit) return;
+      const showError = (message: string) => showReaderToast(message);
+      const checkFailed =
+        'Das Passwort konnte nicht geprüft werden. Bitte versuche es erneut.';
+      const changeFailed =
+        'Das Passwort konnte nicht gespeichert werden. Bitte versuche es später erneut.';
+      // Das Passwort verlässt den Client erst mit dem Klick auf den
+      // Prüf-Button; es gibt keine automatische Prüfung beim Tippen.
+      let requestSeq = 0;
+      let pending = false;
+      // Nach einer Änderung am aktuellen Passwort sind die Felder für das
+      // neue Passwort wieder gesperrt, bis die Prüfung erneut bestätigt.
+      const lockNewFields = () => {
+        newFields.disabled = true;
+        current.readOnly = false;
+        current.removeAttribute('data-password-verified');
+        verify.disabled = false;
+        verify.textContent = 'Passwort prüfen';
+      };
+      const unlockNewFields = () => {
+        newFields.disabled = false;
+        // Das geprüfte Passwort bleibt im Formular (readonly wird mitgesendet),
+        // wirkt aber visuell fertig: Der rote Kasten zeigt, wo es weitergeht.
+        current.readOnly = true;
+        current.setAttribute('data-password-verified', '');
+        verify.textContent = 'Passwort bestätigt';
+      };
+      const runVerify = () => {
+        if (!current.checkValidity()) {
+          current.reportValidity();
+          return;
+        }
+        verify.disabled = true;
+        verify.setAttribute('aria-busy', 'true');
+        pending = true;
+        const requestId = ++requestSeq;
+        const body = new FormData();
+        body.set('action', 'verify-password');
+        body.set('password', current.value);
+        fetch('/api/profil/passwort-pruefen', { method: 'POST', body })
+          .then(async (response) => {
+            // Veraltete Antworten ignorieren: Das Passwort wurde seit dem
+            // Klick geändert.
+            if (requestId !== requestSeq) return;
+            const data = (await response.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            if (!response.ok || !data || data.error) {
+              showError(data?.error ?? checkFailed);
+              verify.disabled = false;
+              return;
+            }
+            unlockNewFields();
+          })
+          .catch(() => {
+            if (requestId !== requestSeq) return;
+            showError(checkFailed);
+            verify.disabled = false;
+          })
+          .finally(() => {
+            if (requestId !== requestSeq) return;
+            pending = false;
+            verify.removeAttribute('aria-busy');
+          });
+      };
+      // Eine laufende Prüfung entwerten, wenn das Passwort sich ändert.
+      const invalidatePendingVerify = () => {
+        requestSeq += 1;
+        if (!pending) return;
+        pending = false;
+        verify.disabled = false;
+        verify.removeAttribute('aria-busy');
+      };
+      verify.addEventListener('click', () => {
+        runVerify();
+      });
+      current.addEventListener('input', () => {
+        invalidatePendingVerify();
+        if (!newFields.disabled) lockNewFields();
+      });
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        const action = form.getAttribute('action');
+        if (!action) {
+          showError(changeFailed);
+          submit.disabled = false;
+          submit.removeAttribute('aria-busy');
+          return;
+        }
+        fetch(action, { method: 'POST', body: new FormData(form) })
+          .then(async (response) => {
+            const data = (await response.json().catch(() => null)) as {
+              error?: string;
+              redirect?: string;
+            } | null;
+            if (!response.ok || !data || data.error) {
+              showError(data?.error ?? changeFailed);
+              submit.disabled = false;
+              submit.removeAttribute('aria-busy');
+              return;
+            }
+            if (data.redirect) window.location.assign(data.redirect);
+          })
+          .catch(() => {
+            showError(changeFailed);
+            submit.disabled = false;
+            submit.removeAttribute('aria-busy');
+          });
+      });
+    };
+
+    const wireProfileEditForm = () => {
+      const form = content.querySelector<HTMLFormElement>(
+        '[data-profile-edit-form]',
+      );
+      const submit = form?.querySelector<HTMLButtonElement>(
+        '[data-profile-edit-submit]',
+      );
+      if (!form || !submit) return;
+      const saveFailed =
+        'Deine Angaben konnten nicht gespeichert werden. Bitte versuche es später erneut.';
+      // Live-Feedback zum Username: reservierte oder vergebene Namen sperren
+      // den Speichern-Button, bis wieder ein freier Name dasteht.
+      const usernameInput = form.querySelector<HTMLInputElement>(
+        'input[name="username"]',
+      );
+      const usernameFeedback = form.querySelector<HTMLElement>(
+        '[data-username-feedback]',
+      );
+      const usernameCheck =
+        usernameInput && usernameFeedback
+          ? wireUsernameLiveCheck(usernameInput, usernameFeedback, submit)
+          : null;
+      const showError = (message: string) => showReaderToast(message);
+      const showNotice = () =>
+        showReaderToast('Deine Änderungen sind gespeichert.');
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        const action = form.getAttribute('action');
+        if (!action) {
+          showError(saveFailed);
+          submit.disabled = false;
+          submit.removeAttribute('aria-busy');
+          return;
+        }
+        fetch(action, { method: 'POST', body: new FormData(form) })
+          .then(async (response) => {
+            const data = (await response.json().catch(() => null)) as {
+              error?: string;
+              username?: string;
+            } | null;
+            if (!response.ok || data?.error) {
+              showError(data?.error ?? saveFailed);
+              return;
+            }
+            showNotice();
+            // Der angezeigte Name folgt dem neuen Username.
+            if (data?.username) {
+              const name = content.querySelector<HTMLElement>(
+                '.profile-identity__name',
+              );
+              if (name) name.textContent = data.username;
+            }
+          })
+          .catch(() => {
+            showError(saveFailed);
+          })
+          .finally(() => {
+            submit.disabled = false;
+            submit.removeAttribute('aria-busy');
+            usernameCheck?.sync();
+          });
+      });
+    };
+
+    const wireNotificationPrefsForm = () => {
+      const form = content.querySelector<HTMLFormElement>(
+        '[data-notification-prefs-form]',
+      );
+      if (!form) return;
+      const saveFailed =
+        'Deine Benachrichtigungseinstellungen konnten nicht gespeichert werden. Bitte versuche es später erneut.';
+      const saved = 'Deine Benachrichtigungseinstellungen sind gespeichert.';
+      // Auto-Save: Jeder Schalter speichert sofort im Hintergrund, ohne
+      // separaten Speichern-Button. Rückmeldungen laufen als Toast.
+      const save = (toggle: HTMLInputElement) => {
+        toggle.disabled = true;
+        toggle.setAttribute('aria-busy', 'true');
+        // getAttribute statt form.action: Ein Feld mit name="action" überdeckt
+        // die Action-Property des Formulars.
+        const action = form.getAttribute('action');
+        if (!action) {
+          showReaderToast(saveFailed);
+          toggle.disabled = false;
+          toggle.removeAttribute('aria-busy');
+          return;
+        }
+        fetch(action, { method: 'POST', body: new FormData(form) })
+          .then(async (response) => {
+            const data = (await response.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            if (!response.ok || !data || data.error) {
+              // Fehlschlag: Schalter zurücksetzen, damit der Zustand zur
+              // gespeicherten Einstellung passt.
+              toggle.checked = !toggle.checked;
+              showReaderToast(data?.error ?? saveFailed);
+              return;
+            }
+            showReaderToast(saved);
+          })
+          .catch(() => {
+            toggle.checked = !toggle.checked;
+            showReaderToast(saveFailed);
+          })
+          .finally(() => {
+            toggle.disabled = false;
+            toggle.removeAttribute('aria-busy');
+          });
+      };
+      for (const toggle of form.querySelectorAll<HTMLInputElement>(
+        '[data-notification-prefs-toggle]',
+      )) {
+        toggle.addEventListener('change', () => save(toggle));
+      }
+    };
+
+    const wireContent = () => {
+      syncThemePicker();
+      syncDataSaverToggle();
+      wireDeletionForm();
+      wirePasswordForm();
+      wireProfileEditForm();
+      wireNotificationPrefsForm();
+      wirePasswordToggles(content);
+      wireAvatarUpload(content);
+    };
+
+    // Vorgerenderter Inhalt (z. B. im Fixture) wird genauso verdrahtet wie
+    // nachgeladene Fragmente.
+    if (loaded) wireContent();
+
+    const showSection = (id: string | undefined, focusHeading = false) => {
+      const sectionId = findProfileSettingsSection(id ?? null)
+        ? (id as string)
+        : defaultProfileSettingsSection;
+      activeSectionId = sectionId;
+      // Der Modal-Header trägt den Titel der aktiven Sektion; im Inhalt
+      // wird er nicht wiederholt.
+      const sectionInfo = findProfileSettingsSection(sectionId);
+      const title = dialog.querySelector<HTMLElement>(
+        '[data-profile-dialog-section-title]',
+      );
+      if (title && sectionInfo) title.textContent = sectionInfo.item.label;
+      for (const section of content.querySelectorAll<HTMLElement>(
+        '[data-profile-section]',
+      ))
+        section.hidden = section.dataset.profileSection !== sectionId;
+      for (const button of dialog.querySelectorAll<HTMLButtonElement>(
+        '[data-profile-section-target]',
+      )) {
+        const active = button.dataset.profileSectionTarget === sectionId;
+        button.setAttribute('aria-current', active ? 'true' : 'false');
+        if (active)
+          button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+      content.scrollTo({ top: 0 });
+      if (focusHeading) {
+        const section = content.querySelector<HTMLElement>(
+          `[data-profile-section="${sectionId}"]`,
+        );
+        section?.setAttribute('tabindex', '-1');
+        section?.focus();
+      }
+    };
+
+    const load = async (): Promise<boolean> => {
+      const url = new URL('/profil', window.location.href);
+      url.searchParams.set('ansicht', 'modal');
+      showLoading();
+      try {
+        const response = await fetch(url, { headers: { Accept: 'text/html' } });
+        if (!response.ok)
+          throw new Error(`profile fragment failed: ${response.status}`);
+        const parsed = document.createElement('div');
+        parsed.innerHTML = await response.text();
+        const fragment = parsed.querySelector('[data-profile-settings]');
+        if (!fragment) throw new Error('profile fragment missing');
+        content.replaceChildren(fragment);
+        loaded = true;
+        wireContent();
+        // Navigation vor dem Laden (leerer Inhalt) hier nachholen.
+        showSection(activeSectionId, false);
+        return true;
+      } catch {
+        showError(
+          'Dein Profil konnte nicht geladen werden. Bitte prüfe, ob du angemeldet bist, und versuche es erneut.',
+        );
+        return false;
+      }
+    };
+
+    const open = async (
+      trigger: HTMLElement | null,
+      sectionId?: string,
+    ): Promise<void> => {
+      // Panel-Trigger liegen im Account-Menü, das beim Modal-Öffnen
+      // zuklappt; der Fokus kehrt dann zur Menü-Schaltfläche zurück.
+      const menuSummary = trigger
+        ?.closest('details[data-account-menu]')
+        ?.querySelector('summary');
+      lastTrigger = menuSummary instanceof HTMLElement ? menuSummary : trigger;
+      dialog.showModal();
+      activeSectionId = sectionId;
+      if (!loaded) await load();
+      // Die Farbwahl kann sich außerhalb des Modals geändert haben.
+      syncThemePicker();
+      showSection(activeSectionId ?? defaultProfileSettingsSection, false);
+    };
+
+    const close = () => {
+      dialog.close();
+      lastTrigger?.focus();
+      lastTrigger = null;
+    };
+
+    for (const button of dialog.querySelectorAll<HTMLButtonElement>(
+      '[data-profile-nav-item]',
+    )) {
+      button.addEventListener('click', () => {
+        const target = button.dataset.profileSectionTarget;
+        if (!dialog.open) {
+          void open(null, target);
+          return;
+        }
+        showSection(target, true);
+      });
+    }
+    dialog
+      .querySelector('[data-profile-close]')
+      ?.addEventListener('click', close);
+    dialog.addEventListener('click', (event) => {
+      // Klick auf die freie Dialogfläche schließt das Modal.
+      if (event.target === dialog) close();
+    });
+    dialog.addEventListener('close', () => {
+      lastTrigger?.focus();
+      lastTrigger = null;
+      if (dialog.dataset.autoOpen === 'true') {
+        // Der Redaktions-Hinweis ist gelesen; ein Reload soll das Modal
+        // nicht erneut erzwingen.
+        const url = new URL(window.location.href);
+        url.searchParams.delete('redaktion');
+        window.history.replaceState(null, '', url);
+      }
+    });
+
+    // Seitenwechsel innerhalb der eigenen Kommentare laden ein neues Fragment.
+    content.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const link = target?.closest<HTMLAnchorElement>('a[data-profile-page]');
+      if (!link) return;
+      event.preventDefault();
+      const page = new URL(link.href, window.location.href).searchParams.get(
+        'kommentarseite',
+      );
+      const url = new URL('/profil', window.location.href);
+      url.searchParams.set('ansicht', 'modal');
+      if (page) url.searchParams.set('kommentarseite', page);
+      const reload = async () => {
+        showLoading();
+        try {
+          const response = await fetch(url, {
+            headers: { Accept: 'text/html' },
+          });
+          if (!response.ok) throw new Error('page fragment failed');
+          const parsed = document.createElement('div');
+          parsed.innerHTML = await response.text();
+          const fragment = parsed.querySelector('[data-profile-settings]');
+          if (!fragment) throw new Error('page fragment missing');
+          content.replaceChildren(fragment);
+          wireContent();
+        } catch {
+          showError(
+            'Deine Kommentare konnten nicht geladen werden. Bitte versuche es später erneut.',
+          );
+          return;
+        }
+        showSection('meine-kommentare', true);
+      };
+      void reload();
+    });
+
+    content.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) return;
+      if (input.name !== 'theme-preference') return;
+      if (!isThemePreferenceValue(input.value)) return;
+      storeThemePreference(input.value);
+      applyTheme(input.value);
+      announceThemeChange(input.value);
+    });
+
+    window.addEventListener('theme-changed', (event) => {
+      const preference = (
+        event as CustomEvent<{ preference?: ThemePreference }>
+      ).detail?.preference;
+      if (preference && dialog.open) syncThemePicker();
+    });
+
+    content.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) return;
+      if (input.name !== 'data-saver') return;
+      const enabled = input.checked;
+      storeDataSaverEnabled(enabled);
+      applyDataSaverMode(enabled);
+      syncDataSaverStatus();
+      window.dispatchEvent(
+        new CustomEvent('data-saver-changed', { detail: { enabled } }),
+      );
+    });
+
+    window.addEventListener('data-saver-changed', () => {
+      if (dialog.open) syncDataSaverToggle();
+    });
+
+    // Systemeinstellung (navigator.connection.saveData) kann sich aendern.
+    dataSaverConnection()?.addEventListener?.('change', () => {
+      if (dialog.open) syncDataSaverToggle();
+    });
+
+    if (dialog.dataset.autoOpen === 'true') {
+      showReaderToast(
+        'Dein Profil ist nicht für die Redaktion freigeschaltet.',
+      );
+      void open(null, defaultProfileSettingsSection);
+    }
+
+    if (dialog === dialogs[0]) {
+      document.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const trigger = target?.closest<HTMLElement>('[data-profile-open]');
+        if (!trigger || dialog.open) return;
+        event.preventDefault();
+        void open(trigger, trigger.dataset.profileSection);
+      });
+    }
+  };
+
+  for (const dialog of dialogs) setupDialog(dialog);
+</script>

@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { isSameOrigin } from '../../lib/admin';
+import { parseProfileSetup, safeReturnPath } from '../../lib/reader';
+import { profileSaveUsernameError } from '../../lib/username-check';
+import ReaderOnboarding from '../../components/ReaderOnboarding.astro';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const user = Astro.locals.readerUser;
+const destination = safeReturnPath(Astro.url.searchParams.get('weiter'));
+if (!user)
+  return Astro.redirect(`/anmelden?weiter=${encodeURIComponent(destination)}`);
+const client = Astro.locals.supabase!;
+const { data: existingProfile } = await client
+  .from('reader_profiles')
+  .select('id')
+  .eq('id', user.id)
+  .maybeSingle();
+if (existingProfile) return Astro.redirect(destination);
+
+const emailConfirmed = Boolean(user.email_confirmed_at);
+let error = '';
+let values = parseProfileSetup(new FormData()).values;
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else if (!emailConfirmed) {
+    error =
+      'Bestätige zuerst deine E-Mail-Adresse. Danach kannst du dein Profil abschließen.';
+  } else {
+    const parsed = parseProfileSetup(await Astro.request.formData());
+    values = parsed.values;
+    error = parsed.error ?? '';
+    if (!error) {
+      const { error: profileError } = await client.rpc(
+        'complete_reader_profile',
+        {
+          p_username: values.username,
+          p_avatar: values.avatar,
+          p_full_name: values.full_name,
+          p_birth_date: values.birth_date,
+          p_avatar_url: values.avatar_path || undefined,
+        },
+      );
+      if (!profileError) return Astro.redirect(destination, 303);
+      // Trigger-Meldung für reservierte Namen und Unique-Constraint direkt
+      // durchreichen; alles andere bleibt generisch.
+      error =
+        profileSaveUsernameError(profileError.code, profileError.message) ??
+        'Dein Profil konnte nicht gespeichert werden. Bitte prüfe deine Angaben und versuche es erneut.';
+    }
+  }
+}
+---
+
+<BaseLayout title="Profil einrichten | Astro Fanblog">
+  <div class="reader-auth-stage">
+    <ReaderOnboarding
+      {values}
+      {destination}
+      {emailConfirmed}
+      email={user.email}
+      {error}
+    />
+  </div>
+</BaseLayout>

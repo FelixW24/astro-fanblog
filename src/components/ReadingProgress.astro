@@ -1,0 +1,38 @@
+<div class="reading-progress" data-reading-progress aria-hidden="true" hidden>
+  <span class="reading-progress__bar" data-reading-progress-bar></span>
+</div>
+
+<script>
+  const progress = document.querySelector<HTMLElement>(
+    '[data-reading-progress]',
+  );
+  const bar = progress?.querySelector<HTMLElement>(
+    '[data-reading-progress-bar]',
+  );
+
+  if (progress && bar) {
+    let frame: number | undefined;
+
+    const updateProgress = () => {
+      frame = undefined;
+      const scrollableHeight =
+        document.documentElement.scrollHeight - window.innerHeight;
+      const progressValue =
+        scrollableHeight > 0
+          ? Math.min(100, (window.scrollY / scrollableHeight) * 100)
+          : 0;
+
+      progress.hidden = progressValue <= 0;
+      bar.style.transform = `scaleX(${progressValue / 100})`;
+    };
+
+    const requestUpdate = () => {
+      if (frame === undefined)
+        frame = window.requestAnimationFrame(updateProgress);
+    };
+
+    window.addEventListener('scroll', requestUpdate, { passive: true });
+    window.addEventListener('resize', requestUpdate);
+    requestUpdate();
+  }
+</script>

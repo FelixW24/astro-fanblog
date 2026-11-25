@@ -1,0 +1,34 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Comments from '../../components/Comments.astro';
+import { getArticle } from '../../lib/content';
+
+// Serverseitige Kommentar-Insel: als Fragment (?fragment=1) von der
+// Artikelseite per Fetch nachgeladen, ohne JS als eigene Seite mit Layout
+// erreichbar (Formular-POST + 303-Redirect funktioniert unverändert).
+// Bleibt dynamisch wegen Session, Votes und Moderations-Status.
+export const prerender = false;
+
+const { slug } = Astro.params;
+let article;
+try {
+  article = slug ? await getArticle(slug) : null;
+} catch {
+  article = null;
+}
+if (!article) return Astro.redirect('/404');
+const fragment = Astro.url.searchParams.get('fragment') === '1';
+---
+
+{
+  fragment ? (
+    <Comments articleId={article.id} slug={article.slug} />
+  ) : (
+    <BaseLayout title={`Kommentare | ${article.title} | Astro Fanblog`}>
+      <nav class="shell article-breadcrumb" aria-label="Beitragsnavigation">
+        <a href={`/beitraege/${article.slug}`}>← Zum Beitrag</a>
+      </nav>
+      <Comments articleId={article.id} slug={article.slug} />
+    </BaseLayout>
+  )
+}

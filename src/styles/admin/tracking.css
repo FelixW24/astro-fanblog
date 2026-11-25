@@ -1,0 +1,81 @@
+/* Tracking-Übersicht in der Redaktion */
+.tracking-page > * + * {
+  margin-top: 24px;
+}
+
+.tracking-overview h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.tracking-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.tracking-charts .tracking-chart {
+  margin: 0;
+}
+
+.tracking-chart {
+  margin: 0 0 20px;
+}
+
+.tracking-chart figcaption {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.tracking-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tracking-chart__grid line {
+  stroke: var(--glass-border, rgba(255, 255, 255, 0.12));
+  stroke-width: 1;
+}
+
+.tracking-chart__line {
+  fill: none;
+  stroke: var(--color-blueprint-blue, #2f6fed);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tracking-chart__area {
+  fill: var(--color-blueprint-blue, #2f6fed);
+  opacity: 0.12;
+}
+
+.tracking-chart__label,
+.tracking-chart__max,
+.tracking-chart__min {
+  fill: var(--color-slate);
+  font-size: 11px;
+}
+
+.tracking-note {
+  margin-top: 12px;
+  color: var(--color-slate);
+}
+
+.history-more {
+  margin-top: 12px;
+}
+
+.history-more summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-blueprint-blue, #2f6fed);
+}
+
+.history-more[open] summary {
+  margin-bottom: 12px;
+}

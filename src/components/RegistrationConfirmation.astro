@@ -1,0 +1,85 @@
+---
+import Icon from './Icon.astro';
+import PageHeading from './PageHeading.astro';
+import { formatResendCountdown } from '../lib/signup-resend';
+import '../styles/public/registration-confirmation.css';
+
+interface Props {
+  next: string;
+  email: string;
+  cooldown: number;
+}
+const { next, email, cooldown } = Astro.props;
+const resendReady = cooldown <= 0;
+---
+<div class="registration-confirmation">
+  <div class="registration-confirmation__mark">
+    <Icon name="mail" size={32} />
+  </div>
+  <p class="overline">Willkommen im Fanblog</p>
+  <PageHeading id="reader-auth-title">Prüfe dein Postfach</PageHeading>
+  <p class="registration-confirmation__intro" role="status">
+    Wenn deine Adresse für die Registrierung verfügbar ist, haben wir eine
+    E-Mail an
+    <strong class="registration-confirmation__email">{email}</strong>
+    gesendet.
+  </p>
+  <ol class="registration-confirmation__steps">
+    <li>
+      <span class="registration-confirmation__number" aria-hidden="true">1</span
+      >
+      <div>
+        <h2>E-Mail bestätigen</h2>
+        <p>Öffne die E-Mail und bestätige deine Adresse über den Link.</p>
+      </div>
+    </li>
+    <li>
+      <span class="registration-confirmation__number" aria-hidden="true">2</span
+      >
+      <div>
+        <h2>Mitreden</h2>
+        <p>Melde dich an und richte dein Profil ein.</p>
+      </div>
+    </li>
+  </ol>
+  <aside
+    class="registration-confirmation__help"
+    aria-labelledby="confirmation-help-title"
+  >
+    <Icon name="info" size={20} />
+    <div>
+      <h2 id="confirmation-help-title">Keine E-Mail gefunden?</h2>
+      <p>Prüfe auch deinen Spam-Ordner – oder fordere die E-Mail erneut an.</p>
+      <div
+        class="registration-confirmation__resend"
+        data-resend
+        data-resend-email={email}
+        data-resend-next={next}
+        data-resend-cooldown={cooldown}
+      >
+        <button type="button" data-resend-button disabled={!resendReady}>
+          <Icon name="refresh" size={16} />
+          <span data-resend-label>
+            {resendReady
+              ? 'E-Mail erneut senden'
+              : `Neue E-Mail in ${formatResendCountdown(cooldown)}`}
+          </span>
+        </button>
+        <p class="registration-confirmation__resend-hint" aria-live="polite">
+          {resendReady ? 'Du kannst jetzt eine neue E-Mail anfordern.' : ''}
+        </p>
+      </div>
+    </div>
+  </aside>
+  <div class="registration-confirmation__actions">
+    <a href={`/anmelden?weiter=${encodeURIComponent(next)}`}>
+      Zur Anmeldung <Icon name="arrow-right" />
+    </a>
+  </div>
+</div>
+<script>
+  import { wireRegistrationResend } from '../scripts/registration-resend';
+
+  const resend = document.querySelector<HTMLElement>('[data-resend]');
+  if (resend) wireRegistrationResend(resend);
+</script>

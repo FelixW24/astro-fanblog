@@ -1,0 +1,225 @@
+---
+import Icon from './Icon.astro';
+import { getNextMatch } from '../lib/next-match';
+import { formatMatchTime, matchTeams, type Match } from '../lib/matches';
+
+function formatCountdown(kickoffAt: string, now = Date.now()): string {
+  const diff = Math.max(0, Date.parse(kickoffAt) - now);
+  const totalSeconds = Math.floor(diff / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  
+  // If more than 48 hours, show days | hours | minutes
+  if (hours > 48) {
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days} Tag${days !== 1 ? 'e' : ''} | ${remainingHours} Std. | ${minutes} Min.`;
+  }
+  
+  // If 48 hours or less, show hours | minutes | seconds
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+let match: Match | null = null;
+let unavailable = false;
+try {
+  match = await getNextMatch();
+} catch {
+  unavailable = true;
+}
+const teams = match ? matchTeams(match) : [];
+const countdownText =
+  match && match.kickoff_at ? formatCountdown(match.kickoff_at) : '';
+---
+
+<aside class="next-match" aria-label="Nächstes Spiel" data-next-match>
+  <p class="next-match__eyebrow">Nächstes Spiel</p>
+  <div data-match-content hidden={!match}>
+    <div
+      class="next-match__teams"
+      data-match-teams
+      aria-label={teams.map((team) => team.name).join(' gegen ')}
+    >
+      {
+        [0, 1].map((index) => (
+          <>
+            {index === 1 && (
+              <span class="next-match__versus" aria-hidden="true">
+                vs.
+              </span>
+            )}
+            <div class="next-match__team">
+              <span
+                class:list={[
+                  'team-crest',
+                  teams[index]?.fc
+                    ? 'team-crest--fc'
+                    : 'team-crest--opponent',
+                ]}
+                data-team-crest
+                aria-hidden="true"
+              >
+                {teams[index]?.short}
+              </span>
+              <span data-team-name>{teams[index]?.name}</span>
+            </div>
+          </>
+        ))
+      }
+    </div>
+    <p class="next-match__countdown" data-match-countdown hidden={!match}>
+      <span>Anpfiff in</span><strong>{countdownText}</strong>
+    </p>
+  </div>
+  <p class="next-match__empty" data-match-empty hidden={Boolean(match)}>
+    {
+      unavailable
+        ? 'Der Spielplan ist gerade nicht verfügbar.'
+        : 'Noch kein weiteres Spiel eingetragen.'
+    }
+  </p>
+  <div class="next-match__actions">
+    <a class="next-match__main" href="/spielplan"
+      >Zum Spielplan<Icon name="arrow-right" size={14} /></a
+    >
+    <a
+      class="next-match__link"
+      data-match-link
+      href={match?.matchcenter_url ?? undefined}
+      hidden={!match?.matchcenter_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      >Zum Spielcenter<Icon name="arrow-right" size={14} /></a
+    >
+  </div>
+  <dl class="next-match__meta" data-match-meta hidden={!match}>
+    <div>
+      <dt>Anstoß</dt>
+      <dd>
+        <Icon name="calendar" size={14} /><time
+          data-match-time
+          datetime={match?.kickoff_at ?? undefined}
+          >{match?.kickoff_at
+            ? formatMatchTime(match.kickoff_at)
+            : 'Noch nicht terminiert'}</time
+        >
+      </dd>
+    </div>
+    <div>
+      <dt>Ort</dt>
+      <dd>
+        <Icon name="map-pin" size={14} /><span data-match-venue
+          >{match?.venue}</span
+        >
+      </dd>
+    </div>
+  </dl>
+</aside>
+
+<script>
+  import { formatMatchTime, matchTeams, type Match } from '../lib/matches';
+  const formatCountdown = (kickoffAt: string, now = Date.now()): string => {
+    const diff = Math.max(0, Date.parse(kickoffAt) - now);
+    const totalSeconds = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (value: number) => String(value).padStart(2, '0');
+    
+    // If more than 48 hours, show days | hours | minutes
+    if (hours > 48) {
+      const days = Math.floor(hours / 24);
+      const remainingHours = hours % 24;
+      return `${days} Tag${days !== 1 ? 'e' : ''} | ${remainingHours} Std. | ${minutes} Min.`;
+    }
+    
+    // If 48 hours or less, show hours | minutes | seconds
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  };
+  const cards = document.querySelectorAll<HTMLElement>('[data-next-match]');
+  cards.forEach((card) => {
+    const content = card.querySelector<HTMLElement>('[data-match-content]')!;
+    const empty = card.querySelector<HTMLElement>('[data-match-empty]')!;
+    const time = card.querySelector<HTMLTimeElement>('[data-match-time]')!;
+    const link = card.querySelector<HTMLAnchorElement>('[data-match-link]')!;
+    const countdown = card.querySelector<HTMLElement>('[data-match-countdown]');
+    const countdownValue = countdown?.querySelector<HTMLElement>('strong');
+    const meta = card.querySelector<HTMLElement>('[data-match-meta]');
+    let pending = false;
+    const tick = () => {
+      if (!time.dateTime || !countdown || !countdownValue) return;
+      const diff = Date.parse(time.dateTime) - Date.now();
+      if (diff <= 0) {
+        countdown.hidden = true;
+        return;
+      }
+      countdown.hidden = false;
+      countdownValue.textContent = formatCountdown(time.dateTime);
+    };
+    const refresh = async () => {
+      if (document.hidden || pending) return;
+      pending = true;
+      try {
+        const response = await fetch('/api/naechstes-spiel', {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) throw new Error('Spielplan nicht verfügbar');
+        const { match }: { match: Match | null } = await response.json();
+        content.hidden = !match;
+        empty.hidden = Boolean(match);
+        empty.textContent = 'Noch kein weiteres Spiel eingetragen.';
+        if (countdown) countdown.hidden = !match;
+        if (meta) meta.hidden = !match;
+        if (!match) return;
+        const teams = matchTeams(match);
+        card
+          .querySelector('[data-match-teams]')!
+          .setAttribute(
+            'aria-label',
+            teams.map((team) => team.name).join(' gegen '),
+          );
+        card
+          .querySelectorAll<HTMLElement>('[data-team-name]')
+          .forEach((element, index) => {
+            element.textContent = teams[index].name;
+          });
+        card
+          .querySelectorAll<HTMLElement>('[data-team-crest]')
+          .forEach((element, index) => {
+            element.textContent = teams[index].short;
+            element.className = `team-crest team-crest--${teams[index].fc ? 'fc' : 'opponent'}`;
+          });
+        if (match.kickoff_at) {
+          time.dateTime = match.kickoff_at;
+          time.textContent = formatMatchTime(match.kickoff_at);
+        } else {
+          time.removeAttribute('datetime');
+          time.textContent = 'Noch nicht terminiert';
+        }
+        card.querySelector('[data-match-venue]')!.textContent = match.venue;
+        link.hidden = !match.matchcenter_url;
+        if (match.matchcenter_url) link.href = match.matchcenter_url;
+        else link.removeAttribute('href');
+        tick();
+      } catch {
+        if (!time.dateTime || Date.parse(time.dateTime) <= Date.now()) {
+          content.hidden = true;
+          empty.hidden = false;
+          empty.textContent = 'Der Spielplan ist gerade nicht verfügbar.';
+          if (countdown) countdown.hidden = true;
+          if (meta) meta.hidden = true;
+        }
+      } finally {
+        pending = false;
+      }
+    };
+    window.setInterval(tick, 1_000);
+    window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('pageshow', refresh);
+    tick();
+  });
+</script>

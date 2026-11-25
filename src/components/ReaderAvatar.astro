@@ -1,0 +1,53 @@
+---
+import { iconInner } from '../lib/icons';
+
+interface Props {
+  variant: string;
+  imageUrl?: string | null;
+  hidden?: boolean;
+  // Geistermodus: neutrales Geist-Platzhalterbild statt Avatar/Namen.
+  ghost?: boolean;
+}
+const { variant, imageUrl, hidden = false, ghost = false } = Astro.props;
+---
+
+{
+  ghost ? (
+    <svg
+      class="reader-avatar reader-avatar--ghost"
+      data-avatar-ghost
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      {...(hidden ? { hidden: true } : {})}
+      set:html={iconInner('ghost')}
+    />
+  ) : imageUrl ? (
+    <img
+      class="reader-avatar reader-avatar--image"
+      data-avatar-image
+      data-decorative
+      src={imageUrl}
+      alt=""
+      width="32"
+      height="32"
+      loading="lazy"
+      decoding="async"
+      hidden={hidden}
+    />
+  ) : (
+    <svg
+      class="reader-avatar"
+      data-avatar-variant={variant}
+      width="32"
+      height="32"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      {...(hidden ? { hidden: true } : {})}
+      set:html={iconInner('user')}
+    />
+  )
+}

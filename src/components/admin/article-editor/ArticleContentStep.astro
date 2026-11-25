@@ -1,0 +1,94 @@
+---
+import type { ArticleFormValues } from '../../../lib/admin';
+
+interface Props {
+  values: ArticleFormValues;
+}
+
+const { values } = Astro.props;
+---
+
+<section class="editor-panel editor-panel--content" data-wizard-step="2" hidden>
+  <div class="section-heading">
+    <div>
+      <span class="section-kicker">02 · Inhalt</span>
+      <h2>Beitragstext</h2>
+    </div>
+    <div class="editor-tabs" role="tablist" aria-label="Editoransicht">
+      <button
+        type="button"
+        role="tab"
+        aria-selected="true"
+        data-editor-tab="write">Schreiben</button
+      >
+      <button
+        type="button"
+        role="tab"
+        aria-selected="false"
+        data-editor-tab="preview">Vorschau</button
+      >
+    </div>
+  </div>
+
+  <div class="format-toolbar" aria-label="Text formatieren">
+    <button type="button" data-format="h2" title="Zwischenüberschrift"
+      >H2</button
+    >
+    <button type="button" data-format="h3" title="Kleine Überschrift">H3</button
+    >
+    <span aria-hidden="true"></span>
+    <button type="button" data-format="bold" title="Fett (Strg+B)"
+      ><strong>B</strong></button
+    >
+    <button type="button" data-format="italic" title="Kursiv (Strg+I)"
+      ><em>I</em></button
+    >
+    <button type="button" data-format="quote" title="Zitat">“</button>
+    <span aria-hidden="true"></span>
+    <button type="button" data-format="ul" title="Aufzählung">• Liste</button>
+    <button type="button" data-format="ol" title="Nummerierte Liste"
+      >1. Liste</button
+    >
+    <button
+      type="button"
+      data-format="link"
+      title="Link einfügen"
+      aria-label="Link einfügen">↗ Link</button
+    >
+    <button type="button" data-format="divider" title="Trennlinie"
+      >— Linie</button
+    >
+  </div>
+
+  <div data-editor-panel="write">
+    <label class="field field--content">
+      <span
+        >Beitragstext<span class="required-marker" aria-hidden="true"
+        ></span></span
+      >
+      <textarea
+        id="article-content"
+        class="content-editor"
+        name="content"
+        rows="25"
+        minlength="20"
+        required
+        spellcheck="true"
+        placeholder="Beginne mit dem stärksten Gedanken …"
+        >{values.content}</textarea
+      >
+    </label>
+  </div>
+  <div
+    class="content-preview"
+    data-editor-panel="preview"
+    role="tabpanel"
+    hidden
+  >
+    <div class="content-preview__empty">Noch kein Inhalt vorhanden.</div>
+  </div>
+  <footer class="content-statusbar">
+    <span id="content-stats">0 Zeichen · ca. 1 Min. Lesezeit</span>
+    <span>Markdown · Vorschau wird sicher gerendert</span>
+  </footer>
+</section>

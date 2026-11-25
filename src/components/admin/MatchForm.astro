@@ -1,0 +1,993 @@
+---
+import { groupPlayersByPosition } from '../../lib/admin-squad';
+import type { MatchFormValues } from '../../lib/matches';
+import {
+  MAX_SUBSTITUTIONS,
+  type MatchSubstitutionInput,
+} from '../../lib/admin-match-lineup';
+
+export interface MatchSquadOption {
+  id: number;
+  name: string;
+  shirt_number: number | null;
+  position: string;
+  is_injured?: boolean;
+}
+
+interface Props {
+  values: MatchFormValues;
+  editing?: boolean;
+  squad?: MatchSquadOption[];
+  starterIds?: number[];
+  benchIds?: number[];
+  substitutions?: MatchSubstitutionInput[];
+  /** true, wenn Kader/Aufstellung beim Laden fehlgeschlagen sind (leere Vorbelegung). */
+  lineupIncomplete?: boolean;
+  fotmobUrl?: string;
+}
+const {
+  values,
+  editing = false,
+  squad = [],
+  starterIds = [],
+  benchIds = [],
+  substitutions = [],
+  lineupIncomplete = false,
+  fotmobUrl = '',
+} = Astro.props;
+const starterSet = new Set(starterIds);
+const benchSet = new Set(benchIds);
+const sortedSquad = [...squad].sort(
+  (a, b) => (a.shirt_number ?? 999) - (b.shirt_number ?? 999),
+);
+const positionGroups = groupPlayersByPosition(sortedSquad);
+// Für die „Raus“-/„Rein“-Dropdowns der Wechsel: nur angehakte, nicht verletzte Spieler.
+const starterCandidates = sortedSquad.filter(
+  (player) => !player.is_injured && starterSet.has(player.id),
+);
+const benchCandidates = sortedSquad.filter(
+  (player) => !player.is_injured && benchSet.has(player.id),
+);
+/** Anzeige-Label eines Kaderspielers für die Wechsel-Auswahl. */
+const playerLabel = (id: number | null | undefined) => {
+  const player = id ? sortedSquad.find((entry) => entry.id === id) : undefined;
+  return player
+    ? `${player.name} (#${player.shirt_number ?? '–'})`
+    : 'Spieler wählen …';
+};
+// Kader als JSON fürs Modal-Script („<“ escaped, damit kein </script> entsteht).
+const squadJson = JSON.stringify(sortedSquad).replace(/</g, '\\u003c');
+---
+
+<form
+  class="player-editor"
+  method="post"
+  data-match-form
+  data-home-venue="Example Arena"
+>
+  <input type="hidden" name="intent" value="save" />
+  {
+    lineupIncomplete && (
+      <input type="hidden" name="lineup_incomplete" value="1" />
+    )
+  }
+  <section class="editor-panel">
+    <div class="player-editor-grid">
+      <label class="field"
+        ><span
+          >Gegner<span class="required-marker" aria-hidden="true"></span></span
+        ><input
+          name="opponent"
+          value={values.opponent}
+          required
+          minlength="2"
+          maxlength="120"
+        /></label
+      >
+      <label class="field"
+        ><span
+          >Gegnerkürzel<span class="required-marker" aria-hidden="true"
+          ></span></span
+        ><input
+          name="opponent_short"
+          value={values.opponent_short}
+          required
+          maxlength="5"
+          placeholder="z. B. HSV"
+        /></label
+      >
+      <label class="field"
+        ><span
+          >Spielort<span class="required-marker" aria-hidden="true"
+          ></span></span
+        ><select name="location" required
+          ><option value="home" selected={values.is_home}>Heimspiel</option
+          ><option value="away" selected={!values.is_home}>Auswärtsspiel</option
+          ></select
+        ></label
+      >
+      <label class="field"
+        ><span
+          >Anstoß (Berliner Zeit)<span
+            class="required-marker"
+            aria-hidden="true"></span></span
+        ><input
+          type="datetime-local"
+          name="kickoff_at"
+          value={values.kickoff_at ?? ''}
+          required
+        /></label
+      >
+      <label class="field"
+        ><span
+          >Stadion<span class="required-marker" aria-hidden="true"></span></span
+        ><input
+          name="venue"
+          value={values.venue}
+          required
+          minlength="2"
+          maxlength="160"
+        /></label
+      >
+      <label class="field"
+        ><span>Spielcenter-Link (optional)</span><input
+          type="url"
+          name="matchcenter_url"
+          value={values.matchcenter_url ?? ''}
+          maxlength="2000"
+          placeholder="https://…"
+        /></label
+      >
+      <label class="field"
+        ><span>Ergebnis – Tore Heim (optional)</span><input
+          type="number"
+          name="home_goals"
+          value={values.home_goals ?? ''}
+          min="0"
+          max="30"
+          step="1"
+          placeholder="z. B. 2"
+        /></label
+      >
+      <label class="field"
+        ><span>Ergebnis – Tore Gast (optional)</span><input
+          type="number"
+          name="away_goals"
+          value={values.away_goals ?? ''}
+          min="0"
+          max="30"
+          step="1"
+          placeholder="z. B. 1"
+        /><small
+          >Nur für absolvierte Spiele; beide Tore zusammen oder leer lassen.</small
+        ></label
+      >
+    </div>
+    <div class="match-form-flags">
+      <label class="check-field"
+        ><span
+          ><input type="checkbox" name="cancelled" checked={values.cancelled} />
+          Abgesagt / vorerst nicht anzeigen</span
+        ></label
+      >
+      <label class="check-field"
+        ><span
+          ><input
+            type="checkbox"
+            name="unscheduled"
+            checked={values.kickoff_at === null}
+          /> Noch nicht terminiert</span
+        ></label
+      >
+    </div>
+  </section>
+  {
+    squad.length > 0 && (
+      <section class="editor-panel">
+        <h2 class="match-form-section-title">Aufstellung des FC Example</h2>
+        <div class="match-form-lineup-columns">
+          <div class="match-form-lineup-column">
+            <h3 class="match-form-subhead">Startelf</h3>
+            <div class="match-form-starters">
+              {positionGroups
+                .filter((group) => group.players.length > 0)
+                .map((group) => (
+                  <fieldset class="match-form-starter-group">
+                    <legend>{group.label}</legend>
+                    {group.players.map((player) => (
+                      <label
+                        class:list={[
+                          'check-field',
+                          { 'check-field--injured': player.is_injured },
+                        ]}
+                      >
+                        <span>
+                          <input
+                            type="checkbox"
+                            name="starters"
+                            value={player.id}
+                            checked={
+                              !player.is_injured && starterSet.has(player.id)
+                            }
+                            disabled={player.is_injured}
+                          />{' '}
+                          {player.name}
+                          <small>#{player.shirt_number ?? '–'}</small>
+                          {player.is_injured && (
+                            <small class="match-form-injured">Verletzt</small>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                ))}
+            </div>
+          </div>
+          <div class="match-form-lineup-column">
+            <h3 class="match-form-subhead">Bank</h3>
+            <div class="match-form-starters">
+              <fieldset class="match-form-starter-group match-form-starter-group--bench">
+                <legend>Bank</legend>
+                <div class="match-form-bench-list">
+                  {sortedSquad.map((player) => (
+                    <label
+                      class:list={[
+                        'check-field',
+                        { 'check-field--injured': player.is_injured },
+                      ]}
+                      data-bench-player={player.id}
+                      hidden={starterSet.has(player.id)}
+                    >
+                      <span>
+                        <input
+                          type="checkbox"
+                          name="bench"
+                          value={player.id}
+                          checked={
+                            !player.is_injured && benchSet.has(player.id)
+                          }
+                          disabled={player.is_injured}
+                        />{' '}
+                        {player.name}
+                        <small>#{player.shirt_number ?? '–'}</small>
+                        {player.is_injured && (
+                          <small class="match-form-injured">Verletzt</small>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          </div>
+        </div>
+        <h3 class="match-form-subhead">Wechsel</h3>
+        <div class="match-form-subs" data-subs>
+          {substitutions.map((sub) => (
+            <div class="match-form-sub" data-sub-row>
+              <label class="field match-form-sub__field">
+                <span>Minute</span>
+                <input
+                  type="number"
+                  name="sub_minute"
+                  value={sub.minute}
+                  min="1"
+                  max="120"
+                  step="1"
+                  placeholder="z. B. 67"
+                />
+              </label>
+              <div class="field match-form-sub__field">
+                <span>Raus (nur Startelf)</span>
+                <select name="sub_out" class="match-form-sub__select">
+                  <option value="">Spieler wählen …</option>
+                  {starterCandidates.map((player) => (
+                    <option value={player.id} selected={sub.out === player.id}>
+                      {playerLabel(player.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div class="field match-form-sub__field">
+                <span>Rein (nur Bank)</span>
+                <select name="sub_in" class="match-form-sub__select">
+                  <option value="">Spieler wählen …</option>
+                  {benchCandidates.map((player) => (
+                    <option value={player.id} selected={sub.in === player.id}>
+                      {playerLabel(player.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                class="admin-danger-button match-form-sub__remove"
+                data-sub-remove
+                aria-label="Wechsel entfernen"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <template data-sub-template>
+          <div class="match-form-sub" data-sub-row>
+            <label class="field match-form-sub__field">
+              <span>Minute</span>
+              <input
+                type="number"
+                name="sub_minute"
+                value=""
+                min="1"
+                max="120"
+                step="1"
+                placeholder="z. B. 67"
+              />
+            </label>
+            <div class="field match-form-sub__field">
+              <span>Raus (nur Startelf)</span>
+              <select name="sub_out" class="match-form-sub__select">
+                <option value="">Spieler wählen …</option>
+              </select>
+            </div>
+            <div class="field match-form-sub__field">
+              <span>Rein (nur Bank)</span>
+              <select name="sub_in" class="match-form-sub__select">
+                <option value="">Spieler wählen …</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              class="admin-danger-button match-form-sub__remove"
+              data-sub-remove
+              aria-label="Wechsel entfernen"
+            >
+              ×
+            </button>
+          </div>
+        </template>
+        <button
+          type="button"
+          class="admin-secondary-button match-form-subs__add"
+          data-sub-add
+          data-max-subs={MAX_SUBSTITUTIONS}
+        >
+          Wechsel hinzufügen
+        </button>
+        <script type="application/json" data-squad-json set:html={squadJson} />
+      </section>
+    )
+  }
+  <section class="editor-panel">
+    <h2 class="match-form-section-title">Basis-Statistiken (optional)</h2>
+    <div class="player-editor-grid">
+      <div class="field match-form-fotmob">
+        <span>FotMob-Link zum Import (optional)</span>
+        <div class="match-form-fotmob__row">
+          <input
+            type="url"
+            name="fotmob_url"
+            value={fotmobUrl}
+            maxlength="2000"
+            placeholder="https://www.fotmob.com/matches/…#4393680"
+          />
+          <button
+            type="button"
+            class="admin-secondary-button"
+            data-fotmob-import
+          >
+            Daten laden
+          </button>
+        </div>
+        <p class="match-form-fotmob__status" data-fotmob-status role="status">
+        </p>
+      </div>
+      <label class="field"
+        ><span>Ballbesitz FC in %</span><input
+          type="number"
+          name="possession_pct"
+          value={values.possession_pct ?? ''}
+          min="0"
+          max="100"
+          step="1"
+          placeholder="z. B. 58"
+        /></label
+      >
+      <label class="field"
+        ><span>xG FC</span><input
+          type="text"
+          inputmode="decimal"
+          name="xg_for"
+          value={values.xg_for ?? ''}
+          maxlength="5"
+          placeholder="z. B. 1,85"
+        /></label
+      >
+      <label class="field"
+        ><span>xG Gegner</span><input
+          type="text"
+          inputmode="decimal"
+          name="xg_against"
+          value={values.xg_against ?? ''}
+          maxlength="5"
+          placeholder="z. B. 0,9"
+        /></label
+      >
+      <label class="field"
+        ><span>Schüsse FC</span><input
+          type="number"
+          name="shots_for"
+          value={values.shots_for ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Schüsse Gegner</span><input
+          type="number"
+          name="shots_against"
+          value={values.shots_against ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Schüsse aufs Tor FC</span><input
+          type="number"
+          name="shots_on_target_for"
+          value={values.shots_on_target_for ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Schüsse aufs Tor Gegner</span><input
+          type="number"
+          name="shots_on_target_against"
+          value={values.shots_on_target_against ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Ecken FC</span><input
+          type="number"
+          name="corners_for"
+          value={values.corners_for ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Ecken Gegner</span><input
+          type="number"
+          name="corners_against"
+          value={values.corners_against ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Fouls FC</span><input
+          type="number"
+          name="fouls_for"
+          value={values.fouls_for ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Fouls Gegner</span><input
+          type="number"
+          name="fouls_against"
+          value={values.fouls_against ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Gelbe Karten FC</span><input
+          type="number"
+          name="yellow_cards_for"
+          value={values.yellow_cards_for ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Gelbe Karten Gegner</span><input
+          type="number"
+          name="yellow_cards_against"
+          value={values.yellow_cards_against ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Rote Karten FC</span><input
+          type="number"
+          name="red_cards_for"
+          value={values.red_cards_for ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+      <label class="field"
+        ><span>Rote Karten Gegner</span><input
+          type="number"
+          name="red_cards_against"
+          value={values.red_cards_against ?? ''}
+          min="0"
+          max="99"
+          step="1"
+        /></label
+      >
+    </div>
+  </section>
+  <div class="match-form-actions">
+    <button class="admin-primary-button" type="submit"
+      >{editing ? 'Änderungen speichern' : 'Spiel speichern'}</button
+    >
+    {
+      editing && (
+        <button
+          class="admin-danger-button"
+          type="button"
+          data-match-delete
+          data-item-name={
+            values.is_home
+              ? `FC Example – ${values.opponent}`
+              : `${values.opponent} – FC Example`
+          }
+        >
+          Spiel löschen
+        </button>
+      )
+    }
+  </div>
+</form>
+
+<style>
+  .match-form-section-title {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .match-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Status-Checkboxen (Abgesagt / Noch nicht terminiert) nebeneinander. */
+  .match-form-flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+  }
+
+  /* Startelf nimmt 2/3, die Bank das rechte 1/3 daneben; Wechsel darunter volle Breite. */
+  .match-form-lineup-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 12px 20px;
+    align-items: start;
+  }
+
+  .match-form-lineup-column > .match-form-subhead {
+    margin-top: 0;
+  }
+
+  .match-form-starters {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .match-form-starter-group {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--color-fog, #e2e3e4);
+    border-radius: 10px;
+  }
+
+  .match-form-starter-group legend {
+    padding: 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .match-form-starter-group .check-field small {
+    margin-left: 6px;
+    color: var(--color-slate, #62676b);
+  }
+
+  /* Bank-Fieldset immer volle Breite, damit die Liste innen Platz hat. */
+  .match-form-starter-group--bench {
+    grid-column: 1 / -1;
+  }
+
+  /* Bank nutzt die Restbreite: Namen laufen nebeneinander, sobald Platz ist. */
+  .match-form-bench-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0 12px;
+  }
+
+  .match-form-bench-list .check-field {
+    margin-bottom: 4px;
+  }
+
+  /* Ausgeblendete Bank-Einträge (in der Startelf) trotz display:flex verstecken. */
+  .match-form-bench-list .check-field[hidden] {
+    display: none;
+  }
+
+  /* Verletzte Spieler: nicht auswählbar, dezent markiert. */
+  .check-field--injured {
+    opacity: 0.55;
+  }
+
+  .match-form-injured {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    color: var(--color-blueprint-blue, #d20a0a);
+    background: color-mix(
+      in srgb,
+      var(--color-blueprint-blue, #d20a0a) 10%,
+      transparent
+    );
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .match-form-subhead {
+    margin: 18px 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .match-form-subs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .match-form-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .match-form-sub__field {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+
+  .match-form-sub__field span {
+    font-size: 12px;
+  }
+
+  /* Eingabefelder und Löschen-Button teilen sich eine Höhe, damit der
+     ×-Button bündig mit den Feldern steht (nicht unten hängend). */
+  .match-form-sub__field input,
+  .match-form-sub__select {
+    box-sizing: border-box;
+    height: 38px;
+  }
+
+  .match-form-sub__remove {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    height: 38px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .match-form-subs__add {
+    margin-top: 10px;
+    align-self: flex-start;
+  }
+
+  .match-form-sub__select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-fog, #e2e3e4);
+    border-radius: 8px;
+    background: var(--color-paper, #fff);
+    color: var(--color-ink-black, #111);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .match-form-sub__select:hover,
+  .match-form-sub__select:focus-visible {
+    border-color: var(--color-blueprint-blue, #d20a0a);
+  }
+
+  .match-form-fotmob__row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .match-form-fotmob__row input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .match-form-fotmob__status {
+    margin: 6px 0 0;
+    min-height: 1em;
+    font-size: 13px;
+  }
+
+  .match-form-fotmob__status--ok {
+    color: var(--color-green, #1f8a3b);
+  }
+
+  .match-form-fotmob__status--error {
+    color: var(--color-blueprint-blue, #d20a0a);
+  }
+
+  @media (max-width: 760px) {
+    /* Zu schmal für zwei Spalten: Bank wieder unter der Startelf. */
+    .match-form-lineup-columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
+
+<script>
+  // Beim Wechsel auf Auswärtsspiel darf das Heimstadion nicht als Stadion
+  // stehen bleiben; zurück auf Heimspiel wird es nur wieder vorgeschlagen,
+  // wenn das Feld leer ist.
+  const form = document.querySelector<HTMLFormElement>('[data-match-form]');
+  if (form) {
+    // FotMob-Import: Link serverseitig auflösen und die Felder im Formular
+    // befüllen, damit die Redaktion die Werte vor dem Speichern anpassen kann.
+    const importButton = form.querySelector<HTMLButtonElement>(
+      '[data-fotmob-import]',
+    );
+    const status = form.querySelector<HTMLElement>('[data-fotmob-status]');
+    const setStatus = (text: string, tone: 'ok' | 'error' | '') => {
+      if (!status) return;
+      status.textContent = text;
+      status.className = `match-form-fotmob__status${tone ? ` match-form-fotmob__status--${tone}` : ''}`;
+    };
+    importButton?.addEventListener('click', async () => {
+      const urlInput = form.querySelector<HTMLInputElement>(
+        'input[name="fotmob_url"]',
+      );
+      const location = form.querySelector<HTMLSelectElement>(
+        'select[name="location"]',
+      );
+      const url = urlInput?.value.trim() ?? '';
+      if (!url) {
+        setStatus('Bitte zuerst einen FotMob-Link eintragen.', 'error');
+        return;
+      }
+      importButton.disabled = true;
+      setStatus('Lade Daten von FotMob …', '');
+      try {
+        const body = new FormData();
+        body.set('fotmob_url', url);
+        body.set('is_home', location?.value === 'away' ? 'false' : 'true');
+        const response = await fetch('/api/fotmob-import', {
+          method: 'POST',
+          body,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setStatus(data.error ?? 'Der Import ist fehlgeschlagen.', 'error');
+          return;
+        }
+        const stats = (data.stats ?? {}) as Record<string, number | null>;
+        let filled = 0;
+        for (const [key, value] of Object.entries(stats)) {
+          const field = form.querySelector<HTMLInputElement>(`[name="${key}"]`);
+          if (field && value !== null && value !== undefined) {
+            field.value = String(value);
+            filled += 1;
+          }
+        }
+        const homeGoals = form.querySelector<HTMLInputElement>(
+          'input[name="home_goals"]',
+        );
+        const awayGoals = form.querySelector<HTMLInputElement>(
+          'input[name="away_goals"]',
+        );
+        if (data.homeGoals !== null && data.homeGoals !== undefined) {
+          if (homeGoals) homeGoals.value = String(data.homeGoals);
+          filled += 1;
+        }
+        if (data.awayGoals !== null && data.awayGoals !== undefined) {
+          if (awayGoals) awayGoals.value = String(data.awayGoals);
+          filled += 1;
+        }
+        setStatus(
+          filled > 0
+            ? `${filled} Werte aus FotMob übernommen — bitte prüfen und ggf. anpassen.`
+            : 'Bei FotMob wurden keine Statistiken gefunden.',
+          filled > 0 ? 'ok' : 'error',
+        );
+      } catch {
+        setStatus(
+          'Der Import ist fehlgeschlagen. Bitte versuche es erneut.',
+          'error',
+        );
+      } finally {
+        importButton.disabled = false;
+      }
+    });
+
+    const location = form.querySelector<HTMLSelectElement>(
+      'select[name="location"]',
+    );
+    const venue = form.querySelector<HTMLInputElement>('input[name="venue"]');
+    const homeVenue = form.dataset.homeVenue ?? '';
+    location?.addEventListener('change', () => {
+      if (!venue) return;
+      if (location.value === 'away') {
+        if (!venue.value.trim() || venue.value === homeVenue) venue.value = '';
+      } else if (!venue.value.trim() && homeVenue) {
+        venue.value = homeVenue;
+      }
+    });
+    form.dataset.venueAutofill = 'ready';
+
+    // „Noch nicht terminiert": Der Anstoß ist dann freiwillig und wird
+    // geleert; serverseitig wird kickoff_at in dem Fall auf null gesetzt.
+    const unscheduledBox = form.querySelector<HTMLInputElement>(
+      'input[name="unscheduled"]',
+    );
+    const kickoffInput = form.querySelector<HTMLInputElement>(
+      'input[name="kickoff_at"]',
+    );
+    const syncKickoffRequired = () => {
+      if (!unscheduledBox || !kickoffInput) return;
+      kickoffInput.required = !unscheduledBox.checked;
+      if (unscheduledBox.checked) kickoffInput.value = '';
+    };
+    unscheduledBox?.addEventListener('change', syncKickoffRequired);
+    syncKickoffRequired();
+
+    // Aufstellung: Startelf und Bank schließen sich pro Spieler gegenseitig
+    // aus; beim Wechsel wird der „Raus“-Spieler automatisch in der Startelf
+    // und der „Rein“-Spieler auf der Bank angehakt.
+    // Bank-Anzeige blendet jeden Spieler aus, der gerade in der Startelf
+    // angehakt ist (serverseitig per hidden vorbelegt, hier für Live-Änderungen).
+    const syncBenchVisibility = () => {
+      form
+        .querySelectorAll<HTMLInputElement>('input[name="starters"]')
+        .forEach((starterBox) => {
+          const benchLabel = form.querySelector<HTMLElement>(
+            `[data-bench-player="${starterBox.value}"]`,
+          );
+          if (benchLabel) benchLabel.hidden = starterBox.checked;
+        });
+    };
+    const setCheckbox = (name: string, id: string, checked: boolean) => {
+      const box = form.querySelector<HTMLInputElement>(
+        `input[name="${name}"][value="${id}"]`,
+      );
+      if (box) box.checked = checked;
+      syncBenchVisibility();
+    };
+    form
+      .querySelectorAll<HTMLInputElement>(
+        'input[name="starters"], input[name="bench"]',
+      )
+      .forEach((box) => {
+        box.addEventListener('change', () => {
+          if (box.checked) {
+            setCheckbox(
+              box.name === 'starters' ? 'bench' : 'starters',
+              box.value,
+              false,
+            );
+          }
+          syncBenchVisibility();
+          syncSubSelects();
+        });
+      });
+    syncBenchVisibility();
+
+    const subsContainer = form.querySelector<HTMLElement>('[data-subs]');
+    const subTemplate = form.querySelector<HTMLTemplateElement>(
+      'template[data-sub-template]',
+    );
+    const subAdd = form.querySelector<HTMLButtonElement>('[data-sub-add]');
+    const maxSubs = Number(subAdd?.dataset.maxSubs ?? 5);
+
+    // Spieler-Auswahl der Wechsel als Dropdowns unter den Feldern:
+    // „Raus“ nur aus der angehakten Startelf, „Rein“ nur aus den angehakten Bank-Spielern.
+    interface SquadEntry {
+      id: number;
+      name: string;
+      shirt_number: number | null;
+    }
+    const squadEntries: SquadEntry[] = JSON.parse(
+      form.querySelector<HTMLScriptElement>(
+        'script[type="application/json"][data-squad-json]',
+      )?.textContent ?? '[]',
+    );
+    const labelOf = (id: number) => {
+      const player = squadEntries.find((entry) => entry.id === id);
+      return player
+        ? `${player.name} (#${player.shirt_number ?? '–'})`
+        : 'Spieler wählen …';
+    };
+    const checkedCandidates = (name: 'starters' | 'bench') =>
+      squadEntries.filter(
+        (player) =>
+          form.querySelector<HTMLInputElement>(
+            `input[name="${name}"][value="${player.id}"]`,
+          )?.checked,
+      );
+    // Dropdown-Optionen live halten; eine Auswahl, deren Spieler nicht mehr
+    // in der Quelle ist, wird zurückgesetzt.
+    const syncSubSelects = () => {
+      for (const [name, candidates] of [
+        ['sub_out', checkedCandidates('starters')],
+        ['sub_in', checkedCandidates('bench')],
+      ] as const) {
+        form
+          .querySelectorAll<HTMLSelectElement>(`select[name="${name}"]`)
+          .forEach((select) => {
+            const current = select.value;
+            select.replaceChildren(
+              new Option('Spieler wählen …', ''),
+              ...candidates.map(
+                (player) => new Option(labelOf(player.id), String(player.id)),
+              ),
+            );
+            select.value = candidates.some(
+              (player) => String(player.id) === current,
+            )
+              ? current
+              : '';
+          });
+      }
+    };
+
+    const bindSubRow = (row: Element) => {
+      row
+        .querySelector('[data-sub-remove]')
+        ?.addEventListener('click', () => row.remove());
+    };
+    subsContainer
+      ?.querySelectorAll('[data-sub-row]')
+      .forEach((row) => bindSubRow(row));
+    subAdd?.addEventListener('click', () => {
+      if (!subsContainer || !subTemplate) return;
+      const rows = subsContainer.querySelectorAll('[data-sub-row]').length;
+      if (rows >= maxSubs) return;
+      const row = subTemplate.content.firstElementChild?.cloneNode(true) as
+        Element | undefined;
+      if (!row) return;
+      subsContainer.appendChild(row);
+      bindSubRow(row);
+      syncSubSelects();
+      row.querySelector<HTMLInputElement>('input[name="sub_minute"]')?.focus();
+    });
+    syncSubSelects();
+  }
+</script>

@@ -1,0 +1,25 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '../lib/icons';
+
+interface Props {
+  title: string;
+  message?: string;
+  icon?: IconName;
+  technical?: boolean;
+}
+
+const { title, message, icon = 'article', technical = false } = Astro.props;
+---
+
+<div
+  class="empty-state"
+  role={technical ? 'status' : undefined}
+  aria-live={technical ? 'polite' : undefined}
+>
+  <span class="empty-state__icon" aria-hidden="true">
+    <Icon name={technical ? 'info' : icon} size={28} />
+  </span>
+  <h2 class="empty-state__title">{title}</h2>
+  {message && <p class="empty-state__message">{message}</p>}
+</div>

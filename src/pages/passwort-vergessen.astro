@@ -1,0 +1,161 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SessionNotice from '../components/SessionNotice.astro';
+import Icon from '../components/Icon.astro';
+import { isSameOrigin } from '../lib/admin';
+import { createAdminAuthClient, createRequestClient } from '../lib/supabase';
+import { authEmailHash, logAuthFailure } from '../lib/auth-security';
+import { emailHasAccount } from '../lib/account-exists';
+import '../styles/public/readers.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+let email = '';
+let error = '';
+let success = false;
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    email = String(form.get('email') ?? '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+      error = 'Bitte gib eine gültige E-Mail-Adresse an.';
+    else if (form.get('session_acknowledged') !== 'on')
+      error =
+        'Bitte bestätige, dass du die Datenschutzhinweise zur Kenntnis genommen hast.';
+    else {
+      // Vor dem Versand prüfen, ob die Adresse ein Konto hat. Supabase
+      // meldet für unbekannte Adressen Erfolg (Anti-Enumeration) und
+      // sendet still — deshalb der Hinweis-Toast für den Absender.
+      let accountKnown: boolean | undefined;
+      try {
+        accountKnown = await emailHasAccount(createAdminAuthClient(), email);
+      } catch {
+        accountKnown = undefined;
+      }
+      if (accountKnown === false) {
+        error =
+          'Zu dieser E-Mail-Adresse ist kein Konto bekannt. Prüfe die Schreibweise oder registriere dich neu.';
+      } else {
+        const client = createRequestClient(Astro);
+        const { error: resetError } = await client.auth.resetPasswordForEmail(
+          email,
+          {
+            redirectTo: new URL(
+              '/auth/passwort-zuruecksetzen',
+              Astro.url.origin,
+            ).href,
+          },
+        );
+        if (resetError) {
+          // SMTP-Ausfälle (z. B. 535 beim Anbieter) zeigen sich hier als
+          // Serverfehler: abbrechen und sichtbar machen, nicht weiterprobieren.
+          logAuthFailure(
+            'reset_failed',
+            { status: resetError.status, code: resetError.code },
+            {
+              address: Astro.clientAddress,
+              emailHash: authEmailHash(email),
+            },
+          );
+          if ((resetError.status ?? 500) >= 500) Astro.response.status = 503;
+          error =
+            'Die Anfrage konnte gerade nicht verarbeitet werden. Bitte versuche es später erneut.';
+        } else success = true;
+      }
+    }
+  }
+}
+---
+
+<BaseLayout title="Passwort vergessen | Astro Fanblog">
+  <div class="reader-auth-stage">
+    <section
+      class="reader-panel reader-panel--auth reader-panel--wide shell"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reader-auth-title"
+    >
+      {
+        success ? (
+          <div class="reader-reset-confirmation">
+            <div class="reader-reset-confirmation__mark">
+              <Icon name="mail" size={32} />
+            </div>
+            <p class="overline">Zugang wiederherstellen</p>
+            <PageHeading id="reader-auth-title">Prüfe dein Postfach</PageHeading>
+            <p class="reader-reset-confirmation__intro" role="status">
+              Falls ein Konto zu dieser E-Mail-Adresse existiert, erhältst du
+              eine Nachricht mit einem Link zum Zurücksetzen des Passworts.
+            </p>
+            <aside class="reader-reset-confirmation__help">
+              <Icon name="info" size={20} />
+              <div>
+                <h2>Keine E-Mail gefunden?</h2>
+                <p>
+                  Prüfe auch deinen Spam-Ordner und fordere den Link notfalls
+                  erneut an.
+                </p>
+              </div>
+            </aside>
+          </div>
+        ) : (
+          <>
+            <p class="overline">Zugang wiederherstellen</p>
+            <PageHeading id="reader-auth-title">Passwort zurücksetzen</PageHeading>
+            <p>
+              Wir senden dir einen sicheren Link, mit dem du ein neues Passwort
+              festlegen kannst.
+            </p>
+            {
+              Astro.url.searchParams.has('link') && (
+                <p role="alert" data-notification>
+                  Der Link ist ungültig oder abgelaufen. Fordere bitte einen
+                  neuen an.
+                </p>
+              )
+            }
+            {
+              error && (
+                <p role="alert" data-notification>
+                  {error}
+                </p>
+              )
+            }
+            <form method="post" class="reader-form reader-form--auth">
+              <p class="required-fields-note">
+                Mit * gekennzeichnete Felder sind Pflichtfelder.
+              </p>
+              <label>
+                <span>
+                  E-Mail-Adresse
+                  <span class="required-marker" aria-hidden="true" />
+                </span>
+                <span class="reader-input-control">
+                  <Icon name="mail" size={17} class="reader-input-icon" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={email}
+                    autocomplete="email"
+                    required
+                    maxlength="254"
+                  />
+                </span>
+              </label>
+              <SessionNotice />
+              <button type="submit">Link anfordern</button>
+            </form>
+          </>
+        )
+      }
+      <p class="reader-auth-switch">
+        <span>{success ? 'Zurück im Spiel?' : 'Doch wieder eingefallen?'}</span>
+        <a href="/anmelden">Zur Anmeldung</a>
+      </p>
+    </section>
+  </div>
+</BaseLayout>

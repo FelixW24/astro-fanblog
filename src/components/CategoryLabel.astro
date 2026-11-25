@@ -1,0 +1,8 @@
+---
+import { categoryMeta } from '../lib/content';
+
+const { category } = Astro.props;
+const meta = categoryMeta(category);
+---
+
+<span class={`category-label category-${meta.slug}`}>{meta.short}</span>

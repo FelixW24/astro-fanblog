@@ -1,0 +1,203 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PasswordField from '../components/PasswordField.astro';
+import { isSameOrigin } from '../lib/admin';
+import { parseNewPassword } from '../lib/reader';
+import {
+  signOutSafely,
+  validEmailProof,
+  validRecoveryApproval,
+} from '../lib/auth-security';
+import '../styles/public/readers.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const proof = await Astro.session!.get('recovery');
+const client = Astro.locals.supabase!;
+let approval = await Astro.session!.get('recoveryApproval');
+const claims = approval ? await client.auth.getClaims() : null;
+const approved = validRecoveryApproval(
+  approval,
+  Astro.locals.readerUser?.id,
+  claims?.data?.claims.session_id,
+);
+if (!validEmailProof(proof) && !approved)
+  return Astro.redirect('/passwort-vergessen?link=ungueltig');
+let factors: { id: string; friendly_name?: string }[] = [];
+if (approved) {
+  const result = await client.auth.mfa.listFactors();
+  factors =
+    result.data?.totp.filter((factor) => factor.status === 'verified') ?? [];
+}
+let error = '';
+let logoutFailed = false;
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error =
+      'Die Anfrage konnte nicht verifiziert werden. Bitte lade die Seite neu.';
+  } else {
+    const form = await Astro.request.formData();
+    const parsed = parseNewPassword(form);
+    error = parsed.error ?? '';
+    if (!error) {
+      if (!approved) {
+        const verified = await client.auth.verifyOtp({
+          token_hash: proof!.tokenHash,
+          type: 'recovery',
+        });
+        Astro.session!.delete('recovery');
+        if (verified.error || !verified.data.user)
+          return Astro.redirect('/passwort-vergessen?link=ungueltig', 303);
+        const verifiedClaims = await client.auth.getClaims();
+        const sessionId = verifiedClaims.data?.claims.session_id;
+        if (verifiedClaims.error || typeof sessionId !== 'string') {
+          await signOutSafely(client);
+          return Astro.redirect('/passwort-vergessen?link=ungueltig', 303);
+        }
+        approval = {
+          userId: verified.data.user.id,
+          sessionId,
+          expiresAt: Date.now() + 15 * 60_000,
+        };
+        Astro.session!.set('recoveryApproval', approval);
+      }
+      const factorResult = await client.auth.mfa.listFactors();
+      if (factorResult.error)
+        error =
+          'Die Sicherheitsprüfung ist gerade nicht verfügbar. Bitte versuche es erneut.';
+      factors =
+        factorResult.data?.totp.filter(
+          (factor) => factor.status === 'verified',
+        ) ?? [];
+      if (!error && factors.length) {
+        const factorId = String(form.get('factor_id') ?? factors[0].id);
+        const code = String(form.get('code') ?? '').trim();
+        if (
+          !factors.some((factor) => factor.id === factorId) ||
+          !/^\d{6}$/.test(code)
+        )
+          error =
+            'Bestätige den Passwortwechsel zusätzlich mit deinem Authenticator-Code.';
+        else {
+          const verified = await client.auth.mfa.challengeAndVerify({
+            factorId,
+            code,
+          });
+          if (verified.error)
+            error = 'Der Authenticator-Code ist ungültig oder abgelaufen.';
+        }
+      }
+      if (!error) {
+        const { error: updateError } = await client.auth.updateUser({
+          password: parsed.password,
+        });
+        if (updateError)
+          error =
+            'Das Passwort konnte nicht geändert werden. Wähle ein anderes sicheres Passwort oder fordere einen neuen Link an.';
+        else {
+          Astro.session!.delete('recoveryApproval');
+          logoutFailed = !(await signOutSafely(client));
+          if (logoutFailed) {
+            Astro.response.status = 503;
+            error =
+              'Dein Passwort wurde geändert, aber die Sitzung konnte nicht vollständig beendet werden.';
+          } else return Astro.redirect('/anmelden?passwort=geaendert', 303);
+        }
+      }
+    }
+  }
+}
+---
+
+<BaseLayout title="Neues Passwort | Astro Fanblog">
+  <div class="reader-auth-stage">
+    <section
+      class="reader-panel reader-panel--auth reader-panel--wide shell"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reader-auth-title"
+    >
+      <p class="overline">Zugang wiederherstellen</p>
+      <PageHeading id="reader-auth-title">Neues Passwort festlegen</PageHeading>
+      <p>
+        Wähle ein neues Passwort mit mindestens 8 Zeichen inklusive Groß- und
+        Kleinbuchstabe, Zahl und Sonderzeichen.
+      </p>
+      {
+        error && (
+          <p role="alert" data-notification>
+            {error}
+          </p>
+        )
+      }
+      {
+        logoutFailed && (
+          <form method="post" action="/abmelden" class="reader-form reader-form--auth">
+            <button type="submit">Abmeldung erneut versuchen</button>
+          </form>
+        )
+      }
+      <form method="post" class="reader-form reader-form--auth">
+        <p class="required-fields-note">
+          Mit * gekennzeichnete Felder sind Pflichtfelder.
+        </p>
+        <PasswordField
+          id="new-password"
+          name="password"
+          label="Neues Passwort"
+          autocomplete="new-password"
+          minlength={8}
+          help="Mindestens 8 Zeichen mit Groß- und Kleinbuchstabe, Zahl und Sonderzeichen."
+        />
+        <PasswordField
+          id="new-password-confirmation"
+          name="password_confirmation"
+          label="Neues Passwort wiederholen"
+          autocomplete="new-password"
+          minlength={8}
+        />
+        {
+          factors.length > 0 && (
+            <fieldset class="reader-mfa">
+              <legend>Zusätzliche Sicherheitsprüfung</legend>
+              <label>
+                <span>
+                  Authenticator
+                  <span class="required-marker" aria-hidden="true" />
+                </span>
+                <select name="factor_id">
+                  {factors.map((factor, index) => (
+                    <option value={factor.id}>
+                      {factor.friendly_name || `Authenticator ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>
+                  Authenticator-Code
+                  <span class="required-marker" aria-hidden="true" />
+                </span>
+                <input
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  minlength="6"
+                  maxlength="6"
+                  required
+                />
+              </label>
+            </fieldset>
+          )
+        }
+        <button type="submit">Passwort speichern</button>
+      </form>
+      <p class="reader-auth-switch">
+        <span>Link abgelaufen?</span>
+        <a href="/passwort-vergessen">Neuen Link anfordern</a>
+      </p>
+    </section>
+  </div>
+</BaseLayout>

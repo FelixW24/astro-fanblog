@@ -1,0 +1,100 @@
+---
+import PageHeading from '../../components/PageHeading.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { safeReturnPath } from '../../lib/reader';
+import { isSameOrigin } from '../../lib/admin';
+import { validEmailProof } from '../../lib/auth-security';
+import '../../styles/public/readers.css';
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'same-origin');
+if (
+  Astro.request.method === 'GET' &&
+  Astro.url.searchParams.has('token_hash')
+) {
+  const proof = {
+    tokenHash: Astro.url.searchParams.get('token_hash') ?? '',
+    expiresAt: Date.now() + 15 * 60_000,
+    next: safeReturnPath(Astro.url.searchParams.get('weiter')),
+  };
+  if (validEmailProof(proof)) Astro.session!.set('confirmation', proof);
+  else Astro.session!.delete('confirmation');
+  return Astro.redirect('/auth/bestaetigen', 303);
+}
+const proof = await Astro.session!.get('confirmation');
+let error = validEmailProof(proof)
+  ? ''
+  : 'Der Bestätigungslink ist ungültig oder abgelaufen. Bitte registriere dich erneut, um einen neuen Link anzufordern.';
+if (Astro.request.method === 'POST') {
+  if (!isSameOrigin(Astro.request)) {
+    Astro.response.status = 403;
+    error = 'Die Anfrage konnte nicht verifiziert werden.';
+  } else if (!error) {
+    const client = Astro.locals.supabase!;
+    const { data: verified, error: verifyError } = await client.auth.verifyOtp({
+      token_hash: proof!.tokenHash,
+      type: 'signup',
+    });
+    Astro.session!.delete('confirmation');
+    if (verifyError)
+      error =
+        'Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.';
+    else {
+      // Die Bestätigung meldet den Nutzer an; direkt im Anschluss beginnt
+      // die Profileinrichtung, ohne erneutes Anmelden.
+      const { data: profile } = await client
+        .from('reader_profiles')
+        .select('id')
+        .eq('id', verified.user?.id ?? '')
+        .maybeSingle();
+      if (profile)
+        return Astro.redirect(safeReturnPath(proof!.next ?? null), 303);
+      return Astro.redirect(
+        `/profil/einrichten?weiter=${encodeURIComponent(
+          safeReturnPath(proof!.next ?? null),
+        )}`,
+        303,
+      );
+    }
+  }
+}
+---
+
+<BaseLayout title="E-Mail bestätigen | Astro Fanblog">
+  <div class="reader-auth-stage">
+    <section
+      class="reader-panel reader-panel--auth shell"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reader-auth-title"
+    >
+      <p class="overline">Konto aktivieren</p>
+      <PageHeading id="reader-auth-title">
+        E-Mail-Adresse bestätigen
+      </PageHeading>
+      {
+        error ? (
+          <p role="alert" data-notification>
+            {error}
+          </p>
+        ) : (
+          <form method="post" class="reader-form reader-form--auth">
+            <p>
+              Bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren.
+              Direkt im Anschluss richtest du dein Profil ein.
+            </p>
+            <button type="submit">E-Mail bestätigen</button>
+          </form>
+        )
+      }
+      <p class="reader-auth-switch">
+        <span>
+          {error ? 'Link ungültig oder abgelaufen?' : 'Schon bestätigt?'}
+        </span>
+        <a href={error ? '/registrieren' : '/anmelden'}>
+          {error ? 'Erneut registrieren' : 'Zur Anmeldung'}
+        </a>
+      </p>
+    </section>
+  </div>
+</BaseLayout>

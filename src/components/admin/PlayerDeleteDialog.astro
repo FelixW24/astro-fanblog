@@ -1,0 +1,32 @@
+<dialog
+  class="editor-dialog player-delete-dialog"
+  data-player-delete-dialog
+  aria-labelledby="player-delete-dialog-title"
+  aria-describedby="player-delete-dialog-description"
+>
+  <span class="editor-dialog__eyebrow">Mannschaft</span>
+  <h2 id="player-delete-dialog-title" data-player-delete-title></h2>
+  <p id="player-delete-dialog-description">
+    Das Spielerprofil und alle zugehörigen Diagramme werden dauerhaft
+    gelöscht. Das öffentliche Profil ist danach nicht mehr erreichbar. Diese
+    Aktion kann nicht rückgängig gemacht werden.
+  </p>
+  <form class="editor-dialog__form" method="post" data-player-delete-form>
+    <input type="hidden" name="confirm_delete" data-player-delete-confirm />
+    <div class="editor-dialog__actions">
+      <button
+        type="button"
+        class="editor-dialog__cancel"
+        data-player-delete-cancel
+      >
+        Abbrechen
+      </button>
+      <button
+        type="submit"
+        class="editor-dialog__submit player-delete-dialog__submit"
+      >
+        Spieler endgültig löschen
+      </button>
+    </div>
+  </form>
+</dialog>

@@ -1,0 +1,75 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { categoryMeta } from '../lib/content';
+import { validUnsubscribeToken } from '../lib/notifications';
+import { createAdminAuthClient } from '../lib/supabase';
+
+// Komfort-Abmeldung wie beim Newsletter: Der signierte Link aus der
+// Benachrichtigungs-E-Mail deaktiviert die Benachrichtigung für die
+// Kategorie ohne Anmeldung (ein Klick genügt).
+const token = Astro.url.searchParams.get('token') ?? '';
+const parts = token.split('.');
+const userId = parts.length === 4 ? parts[1] : '';
+const category = parts.length === 4 ? parts[2] : '';
+
+let done = false;
+let label = '';
+let failed = false;
+if (userId && category && validUnsubscribeToken(token, userId, category)) {
+  label = categoryMeta(category).label;
+  try {
+    const admin = createAdminAuthClient();
+    const { error } = await admin
+      .from('article_notification_preferences')
+      .update({ email_enabled: false, in_app_enabled: false })
+      .eq('user_id', userId)
+      .eq('category', category);
+    done = !error;
+    if (error) {
+      console.error('notifications.unsubscribe_failed', error);
+      failed = true;
+    }
+  } catch (error) {
+    console.error('notifications.unsubscribe_failed', error);
+    failed = true;
+  }
+} else {
+  failed = true;
+}
+---
+
+<BaseLayout title="Benachrichtigung abbestellt | Astro Fanblog">
+  <section class="not-found shell">
+    {
+      done ? (
+        <>
+          <PageHeading>Benachrichtigung abbestellt</PageHeading>
+          <p>
+            Du erhältst für die Kategorie „{label}“ keine Benachrichtigungen
+            mehr — weder per E-Mail noch in der Plattform.
+          </p>
+          <p>
+            Du kannst die Benachrichtigung jederzeit wieder in deinem Profil
+            aktivieren.
+          </p>
+          <a class="button" href="/profil">
+            Zu den Benachrichtigungseinstellungen
+          </a>
+        </>
+      ) : (
+        <>
+          <PageHeading>Abmeldung nicht möglich</PageHeading>
+          <p>
+            {failed && !userId
+              ? 'Dieser Abmeldelink ist ungültig oder abgelaufen.'
+              : 'Beim Abmelden ist ein Fehler aufgetreten. Bitte versuche es später erneut.'}
+          </p>
+          <a class="button" href="/profil">
+            Zu den Benachrichtigungseinstellungen
+          </a>
+        </>
+      )
+    }
+  </section>
+</BaseLayout>

@@ -1,0 +1,154 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { getSiteAdmin } from '../../../lib/admin';
+import { createAdminAuthClient } from '../../../lib/supabase';
+import {
+  listAdminUsers,
+  parseUserListParams,
+  roleLabel,
+  userListQuery,
+} from '../../../lib/admin-users';
+
+// Nur Konten mit app_metadata.is_admin duerfen die Benutzerverwaltung sehen;
+// die Pruefung laeuft serverseitig bei jedem Request (getUser liest die
+// Metadaten live vom Auth-Server).
+const { user } = await getSiteAdmin(Astro);
+if (!user) return Astro.redirect('/admin/login');
+
+const params = parseUserListParams(Astro.url.searchParams);
+const adminClient = createAdminAuthClient();
+const result = await listAdminUsers(adminClient, params);
+---
+
+<AdminLayout title="Benutzer" userEmail={user.email ?? 'Admin'}>
+  <header class="admin-page-heading">
+    <div>
+      <span class="admin-eyebrow">Community · Konten</span>
+      <h1>Benutzerverwaltung</h1>
+      <p>
+        Leserkonten suchen, Profildaten bearbeiten, Redaktionsstatus und
+        Geistermodus verwalten sowie Konten endgültig löschen. Nur für Admins
+        sichtbar.
+      </p>
+    </div>
+  </header>
+
+  <form class="admin-filters" method="get">
+    <label>
+      <span class="sr-only">Benutzer durchsuchen (Username oder E-Mail)</span>
+      <input
+        type="search"
+        name="suche"
+        value={params.search}
+        maxlength="120"
+        placeholder="Username oder E-Mail suchen …"
+      />
+    </label>
+    <label>
+      <span class="sr-only">Rolle</span>
+      <select name="rolle">
+        <option value="alle" selected={params.role === 'alle'}
+          >Alle Konten</option
+        >
+        <option value="leser" selected={params.role === 'leser'}>Leser</option>
+        <option value="redaktion" selected={params.role === 'redaktion'}
+          >Redaktion</option
+        >
+        <option value="geister" selected={params.role === 'geister'}
+          >Geistermodus</option
+        >
+      </select>
+    </label>
+    <button type="submit">Filtern</button>
+    {
+      (params.search || params.role !== 'alle') && (
+        <a href="/admin/benutzer">Zurücksetzen</a>
+      )
+    }
+  </form>
+
+  <section class="admin-table-wrap" aria-label="Benutzerliste">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Benutzer</th>
+          <th>E-Mail</th>
+          <th>Rolle</th>
+          <th>Status</th>
+          <th>Erstellt</th>
+          <th><span class="sr-only">Aktionen</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          result.users.map((row) => (
+            <tr>
+              <td>
+                <strong>{row.username ?? '—'}</strong>
+                {row.isGhost && <small>Geist</small>}
+              </td>
+              <td>{row.email}</td>
+              <td>{roleLabel(row.role)}</td>
+              <td>
+                {row.isGhost
+                  ? 'Geistermodus'
+                  : row.hasProfile
+                    ? 'Aktiv'
+                    : 'Ohne Profil'}
+              </td>
+              <td>
+                {row.createdAt
+                  ? new Date(row.createdAt).toLocaleDateString('de-DE', {
+                      dateStyle: 'medium',
+                    })
+                  : '—'}
+              </td>
+              <td>
+                <div class="admin-page-actions">
+                  <a
+                    class="admin-secondary-button admin-icon-action"
+                    href={`/admin/benutzer/${row.id}`}
+                    aria-label={`Konto ${row.username ?? row.email} verwalten`}
+                  >
+                    <Icon name="edit" size={20} />
+                  </a>
+                </div>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {
+      result.users.length === 0 && (
+        <div class="admin-empty">
+          <>
+            <strong>Keine Konten gefunden.</strong>
+            <p>Passe Suche oder Filter an.</p>
+          </>
+        </div>
+      )
+    }
+  </section>
+
+  {
+    result.pageCount > 1 && (
+      <nav aria-label="Benutzerseiten">
+        {result.page > 1 && (
+          <a href={`/admin/benutzer${userListQuery(params, result.page - 1)}`}>
+            Vorherige
+          </a>
+        )}
+        <span>
+          Seite {result.page} von {result.pageCount} ({result.total} Konten)
+        </span>
+        {result.page < result.pageCount && (
+          <a href={`/admin/benutzer${userListQuery(params, result.page + 1)}`}>
+            Nächste
+          </a>
+        )}
+      </nav>
+    )
+  }
+</AdminLayout>

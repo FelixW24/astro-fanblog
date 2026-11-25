@@ -1,0 +1,76 @@
+:is(.article-markdown, .content-preview) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+:is(.article-markdown, .content-preview) :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 1.8em 0.6em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+:is(.article-markdown, .content-preview) h1 {
+  font-size: 1.6em;
+}
+:is(.article-markdown, .content-preview) strong {
+  font-weight: 700;
+}
+:is(.article-markdown, .content-preview) em {
+  font-style: italic;
+}
+:is(.article-markdown, .content-preview) :is(ul, ol) {
+  margin-block: 1em;
+  padding-inline-start: 1.6em;
+  list-style-position: outside;
+}
+:is(.article-markdown, .content-preview) ul {
+  list-style-type: disc;
+}
+:is(.article-markdown, .content-preview) ol {
+  list-style-type: decimal;
+}
+:is(.article-markdown, .content-preview) ul ul {
+  list-style-type: circle;
+}
+:is(.article-markdown, .content-preview) li > :is(ul, ol) {
+  margin-block: 0.5em;
+}
+:is(.article-markdown, .content-preview) p {
+  margin-block: 0 1.2em;
+}
+:is(.article-markdown, .content-preview) code {
+  padding: 0.15em 0.3em;
+  background: var(--color-paper);
+  border-radius: 4px;
+  font-family: var(--font-ranade);
+  font-size: 0.9em;
+}
+:is(.article-markdown, .content-preview) pre {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-block: 1.5em;
+  padding: 16px;
+  background: var(--color-paper);
+  border-radius: var(--radius-cards);
+}
+:is(.article-markdown, .content-preview) pre code {
+  padding: 0;
+}
+:is(.article-markdown, .content-preview) table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-block: 1.5em;
+  border-collapse: collapse;
+}
+:is(.article-markdown, .content-preview) :is(th, td) {
+  padding: 10px 14px;
+  text-align: start;
+  box-shadow: inset 0 -1px var(--color-fog);
+}
+:is(.article-markdown, .content-preview) th {
+  background: var(--color-paper);
+  font-weight: 700;
+}
+:is(.article-markdown, .content-preview) img {
+  max-width: 100%;
+  height: auto;
+}

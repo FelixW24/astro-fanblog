@@ -1,0 +1,26 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import '../styles/admin.css';
+import '../styles/admin/integrated.css';
+
+interface Props {
+  title: string;
+  userEmail: string;
+}
+const { title } = Astro.props;
+// Die Redaktionsnavigation sitzt im Header (EditorialNav, ersetzt dort das
+// Blog-Menü) — hier bleibt nur der Zurück-Link zum Blog.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<BaseLayout title={`${title} | Redaktion · Astro Fanblog`} workspace>
+  <div class="editorial-workspace">
+    <div class="editorial-context">
+      <a href="/" class="editorial-context__back"
+        ><Icon name="arrow-left" size={16} /> Zum Blog</a
+      >
+    </div>
+    <div class="admin-main"><slot /></div>
+  </div>
+</BaseLayout>

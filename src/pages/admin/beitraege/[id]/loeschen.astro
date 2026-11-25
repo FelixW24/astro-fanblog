@@ -1,0 +1,33 @@
+---
+import { getAdmin, isSameOrigin } from '../../../../lib/admin';
+import { logAdminAction } from '../../../../lib/audit-log';
+
+if (Astro.request.method !== 'POST' || !isSameOrigin(Astro.request)) {
+  return new Response('Method Not Allowed', {
+    status: 405,
+    headers: { Allow: 'POST' },
+  });
+}
+
+const id = Number(Astro.params.id);
+if (!Number.isSafeInteger(id) || id < 1) return Astro.redirect('/404');
+
+const { supabase, user } = await getAdmin({
+  request: Astro.request,
+  cookies: Astro.cookies,
+});
+if (!user) return Astro.redirect('/admin/login');
+
+const { error } = await supabase.from('articles').delete().eq('id', id);
+if (error)
+  return new Response('Der Beitrag konnte nicht gelöscht werden.', {
+    status: 500,
+  });
+logAdminAction({
+  action: 'delete',
+  entity: 'article',
+  entityId: id,
+  actorEmail: user.email ?? undefined,
+});
+return Astro.redirect('/admin?saved=deleted', 303);
+---

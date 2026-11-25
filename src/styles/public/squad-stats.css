@@ -1,0 +1,97 @@
+/* Tab-Umschaltung: Ohne aktiven "Statistiken"-Tab bleiben die Fakten
+   verborgen, im Statistik-Tab verschwinden dafuer die Mannschaftsteile. */
+[data-squad-container]:not([data-active-section='statistiken'])
+  [data-squad-section='statistiken'] {
+  display: none;
+}
+[data-squad-container][data-active-section='statistiken']
+  > [data-squad-section]:not([data-squad-section='statistiken']) {
+  display: none;
+}
+
+.squad-stats__header h2 {
+  font-size: 30px;
+  letter-spacing: -0.025em;
+  margin: 0 0 4px;
+}
+
+.squad-stats__header p {
+  color: var(--color-slate);
+  margin: 0 0 20px;
+}
+
+.squad-stats__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.squad-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px;
+  border: 1px solid var(--color-fog);
+  background: var(--color-canvas);
+}
+
+.squad-stat__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-highlight);
+  color: var(--red);
+  margin-bottom: 8px;
+}
+
+.squad-stat__value {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.squad-stat__label {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-slate);
+}
+
+.squad-stat__detail {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--color-slate);
+}
+
+.squad-stat__detail a {
+  color: var(--color-ink-black);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--color-stone);
+  text-underline-offset: 2px;
+}
+
+.squad-stat__detail a:hover {
+  text-decoration-color: var(--red);
+  color: var(--red);
+}
+
+@media (max-width: 600px) {
+  .squad-stats__header h2 {
+    font-size: 26px;
+  }
+  .squad-stats__grid {
+    grid-template-columns: 1fr;
+  }
+  .squad-stat {
+    padding: 16px;
+  }
+}

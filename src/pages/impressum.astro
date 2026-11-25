@@ -1,0 +1,45 @@
+---
+import PageHeading from '../components/PageHeading.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Impressum | Astro Fanblog"
+  description="Impressum und Angaben zur redaktionellen Verantwortung von Astro Fanblog."
+>
+  <header class="page-hero shell">
+    <span class="overline">Rechtliche Angaben</span>
+    <PageHeading>Impressum</PageHeading>
+    <p>Angaben zum Anbieter dieses unabhängigen Fanblogs.</p>
+  </header>
+
+  <section class="section shell legal-content" aria-labelledby="anbieter">
+    <h2 id="anbieter">Angaben gemäß § 5 DDG</h2>
+    <address>
+      Max Mustermann<br />
+      Musterstraße 1<br />
+      12345 Musterstadt
+    </address>
+
+    <h2>Kontakt</h2>
+    <p>
+      E-Mail: <a href="mailto:kontakt@example.com"
+        >kontakt@example.com</a
+      >
+    </p>
+
+    <h2>Redaktionell verantwortlich gemäß § 18 Abs. 2 MStV</h2>
+    <address>
+      Max Mustermann<br />
+      Musterstraße 1<br />
+      12345 Musterstadt
+    </address>
+
+    <h2>Unabhängiges Angebot</h2>
+    <p>
+      Astro Fanblog ist ein unabhängiger Fanblog und kein offizielles Angebot
+      eines Fußballvereins. Genannte Marken und Kennzeichen gehören ihren jeweiligen
+      Inhabern.
+    </p>
+  </section>
+</BaseLayout>

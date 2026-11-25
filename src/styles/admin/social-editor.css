@@ -1,0 +1,141 @@
+.social-editor {
+  display: grid;
+  grid-template-columns: minmax(240px, 310px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.social-controls,
+.social-workspace {
+  min-width: 0;
+}
+.social-controls {
+  padding: 20px;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-cards);
+  background: var(--color-paper);
+  display: grid;
+  gap: 16px;
+}
+.social-controls h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.social-controls label,
+.social-controls .social-field {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.social-controls fieldset {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  border: 0;
+  border-top: 1px solid var(--color-fog);
+  padding: 16px 0 0;
+}
+.social-controls legend {
+  padding: 0 8px 0 0;
+  font-weight: 700;
+}
+.social-controls input:not([type='range']),
+.social-controls select,
+.social-controls textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-inputs);
+  background: var(--color-canvas);
+  color: var(--color-ink-black);
+  font: inherit;
+}
+.social-controls input[type='range'] {
+  width: 100%;
+  accent-color: var(--color-blueprint-blue);
+}
+.social-controls textarea {
+  resize: vertical;
+}
+.social-controls p,
+.social-hint {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.social-editor button,
+.social-open {
+  padding: 10px 14px;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-buttons);
+  color: var(--color-ink-black);
+  background: var(--color-paper);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.social-editor .admin-primary-button {
+  background: var(--color-blueprint-blue);
+  color: #fff;
+}
+.social-editor button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.social-editor :is(input, select, textarea, button):focus-visible,
+.social-open:focus-within {
+  outline: 3px solid var(--color-blueprint-blue);
+  outline-offset: 3px;
+}
+.social-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.social-open {
+  position: relative;
+  overflow: hidden;
+}
+.social-open input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.social-stage {
+  padding: 24px;
+  background: var(--color-stone);
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-cards);
+  display: flex;
+  justify-content: center;
+}
+.social-stage canvas {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: 740px;
+  object-fit: contain;
+  box-shadow: 0 8px 24px #0002;
+}
+.social-status {
+  min-height: 24px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+@media (max-width: 850px) {
+  .social-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .social-workspace {
+    grid-row: 1;
+  }
+  .social-stage {
+    padding: 12px;
+  }
+  .social-stage canvas {
+    max-height: 500px;
+  }
+}
