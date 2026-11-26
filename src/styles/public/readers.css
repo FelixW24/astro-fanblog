@@ -326,8 +326,8 @@
 /* High-contrast reader surfaces */
 .reader-panel--auth,
 .reader-comments {
-  --reader-accent: #d20a0a;
-  --reader-accent-hover: #a80707;
+  --reader-accent: #006284;
+  --reader-accent-hover: #113285;
   --reader-muted: #62676b;
   --reader-border: rgb(21 23 25 / 34%);
   --reader-surface: #ffffff;
@@ -338,8 +338,8 @@
 }
 :root[data-theme='dark'] .reader-panel--auth,
 :root[data-theme='dark'] .reader-comments {
-  --reader-accent: #e30613;
-  --reader-accent-hover: #ff3038;
+  --reader-accent: #2ea9df;
+  --reader-accent-hover: #58b2dc;
   --reader-muted: #a8adb2;
   --reader-border: #292d31;
   --reader-surface: #171a1d;
@@ -349,8 +349,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .reader-panel--auth,
   :root:not([data-theme='light']) .reader-comments {
-    --reader-accent: #e30613;
-    --reader-accent-hover: #ff3038;
+    --reader-accent: #2ea9df;
+    --reader-accent-hover: #58b2dc;
     --reader-muted: #a8adb2;
     --reader-border: #292d31;
     --reader-surface: #171a1d;

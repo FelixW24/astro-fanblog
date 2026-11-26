@@ -207,7 +207,7 @@ img {
   --sidebar-active: #151719;
   --sidebar-muted: #62676b;
   --sidebar-hover: rgb(21 23 25 / 6%);
-  --sidebar-accent: #d20a0a;
+  --sidebar-accent: #006284;
   --sidebar-on-accent: #ffffff;
 }
 
@@ -229,7 +229,7 @@ img {
   --sidebar-active: #fff;
   --sidebar-muted: #a8adb2;
   --sidebar-hover: rgb(244 244 242 / 4%);
-  --sidebar-accent: #e30613;
+  --sidebar-accent: #2ea9df;
   --sidebar-on-accent: #ffffff;
 }
 
@@ -243,7 +243,7 @@ img {
     --sidebar-active: #fff;
     --sidebar-muted: #a8adb2;
     --sidebar-hover: rgb(244 244 242 / 4%);
-    --sidebar-accent: #e30613;
+    --sidebar-accent: #2ea9df;
     --sidebar-on-accent: #ffffff;
   }
 }

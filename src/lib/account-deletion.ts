@@ -115,7 +115,7 @@ export function renderAccountDeletionMail(options: {
                   style="margin: 0 0 24px"
                 >
                   <tr>
-                    <td style="background: #d20a0a; border-radius: 10px">
+                    <td style="background: #006284; border-radius: 10px">
                       <a
                         href="${escapeHtml(url)}"
                         style="

@@ -44,7 +44,7 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: var(--sidebar-accent, #e30613);
+  background: var(--sidebar-accent, #2ea9df);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;

@@ -145,7 +145,7 @@ async function setup(root: HTMLElement) {
     ctx.textAlign = 'right';
     ctx.fillText('EXAMPLE.COM', 1008, 88);
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#d20a0a';
+    ctx.fillStyle = '#006284';
     ctx.fillRect(72, 190, 936, 5);
     textBlock(design.label, 26, 230, 76, 700);
     const titleY = (height * design.textY) / 100;
@@ -167,7 +167,7 @@ async function setup(root: HTMLElement) {
       Math.max(60, available - used),
       500,
     );
-    ctx.fillStyle = '#d20a0a';
+    ctx.fillStyle = '#006284';
     ctx.fillRect(72, height - 156, 84, 8);
     ctx.fillStyle = dark ? '#f4f4f2' : '#151719';
     textBlock(design.footer, 24, height - 112, 80, 700);

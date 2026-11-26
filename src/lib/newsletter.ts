@@ -382,7 +382,7 @@ export function renderConfirmationMail(options: {
                   style="margin: 0 0 24px"
                 >
                   <tr>
-                    <td style="background: #d20a0a; border-radius: 10px">
+                    <td style="background: #006284; border-radius: 10px">
                       <a
                         href="${escapeHtml(confirmUrl)}"
                         style="
@@ -461,7 +461,7 @@ export function renderIssueMail(options: {
                   style="margin: 0 0 24px"
                 >
                   <tr>
-                    <td style="background: #d20a0a; border-radius: 10px">
+                    <td style="background: #006284; border-radius: 10px">
                       <a
                         href="${escapeHtml(homeUrl)}"
                         style="
@@ -487,7 +487,7 @@ export function renderIssueMail(options: {
                 >
                   Du erhältst diese E-Mail, weil du den Fanblog-Newsletter
                   abonniert hast.
-                  <a href="${escapeHtml(unsubscribeUrl)}" style="color: #d20a0a">Newsletter abbestellen (ein Klick, ohne Anmeldung)</a>
+                  <a href="${escapeHtml(unsubscribeUrl)}" style="color: #006284">Newsletter abbestellen (ein Klick, ohne Anmeldung)</a>
                 </p>`;
   const { html } = mailShell(
     'Newsletter',

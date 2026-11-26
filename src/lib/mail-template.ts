@@ -101,7 +101,7 @@ export function mailShell(
                   text-align: left;
                 "
               >
-                Astro Fanblog<span style="color: #d20a0a">.</span>
+                Astro Fanblog<span style="color: #006284">.</span>
                 <span
                   style="
                     display: block;

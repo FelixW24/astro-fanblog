@@ -1,9 +1,11 @@
 # Astro Fanblog — Design-System
 
-Astro Fanblog ist ein redaktioneller FC-Fanblog. Eine helle Papierfläche, weiße
-Karten, dunkle Schrift und ein FC-roter Akzent prägen die öffentliche
-Oberfläche. Die Redaktion verwendet dieselben Farb- und Schrift-Tokens, hat
-aber eigene Layouts in `src/styles/admin/`.
+Astro Fanblog ist ein neutraler Fanblog. Eine helle Papierfläche, weiße
+Karten, dunkle Schrift und ein indigofarbener Akzent prägen die öffentliche
+Oberfläche. Die Akzentfarben sind traditionelle japanische Farben von
+[nipponcolors.com](https://nipponcolors.com) — bewusst neutral und weg von
+Vereinsfarben wie Rot-Weiß. Die Redaktion verwendet dieselben Farb- und
+Schrift-Tokens, hat aber eigene Layouts in `src/styles/admin/`.
 
 Dieses Dokument beschreibt den aktuellen Stand. `src/styles/tokens.css` ist
 die Quelle für Farben, Schriftstapel, Abstände und benannte Radien.
@@ -21,14 +23,18 @@ ist die Ausnahme unten beschrieben.
 | `--color-ink-black`, `--color-carbon` | `#151719`               | `#f4f4f2`                | Haupttext und Überschriften      |
 | `--color-slate`, `--color-mint`       | `#62676b`               | `#a8adb2`                | Metadaten und Nebeninformation   |
 | `--color-fog`                         | `#e2e3e4`               | `#292d31`                | Linien und Rahmen                |
-| `--color-blueprint-blue`              | `#d20a0a`               | `#e30613`                | Links, Aktionen, aktive Zustände |
-| `--color-blueprint-blue-dark`         | `#a80707`               | `#ff3038`                | verstärkte Akzentzustände        |
-| `--color-highlight`                   | `#f2d5d5`               | `#3a191c`                | Textauswahl (`::selection`)      |
+| `--color-blueprint-blue`              | `#006284`               | `#2ea9df`                | Links, Aktionen, aktive Zustände |
+| `--color-blueprint-blue-dark`         | `#113285`               | `#58b2dc`                | verstärkte Akzentzustände        |
+| `--color-highlight`                   | `#a5dee4`               | `#566c73`                | Textauswahl (`::selection`)      |
 | `--surface-interactive-hover`         | `#ededeb`               | `#121417`                | ruhige Hover-Fläche              |
 
 `blueprintBlue` und `mint` sind historische Token-Namen: Sie stehen heute für
-FC-Rot und gedämpftes Grau. Neue Komponenten verwenden weiterhin die
-bestehenden Tokens. Die Sidebar besitzt in
+den Indigo-Akzent und gedämpftes Grau. Die Akzentwerte kommen von
+[nipponcolors.com](https://nipponcolors.com): 縹 Hanada `#006284` (hell) bzw.
+露草 Tsuyukusa `#2ea9df` (dunkel), dazu 紺青 Konjō `#113285` und 空 Sora
+`#58b2dc` für verstärkte Zustände sowie 瓶覗 Kamenozoki `#a5dee4` und 藍鼠
+Ainezumi `#566c73` für die Textauswahl. Neue Komponenten verwenden weiterhin
+die bestehenden Tokens. Die Sidebar besitzt in
 `src/styles/public/base.css` eigene helle und dunkle Variablen für Kontrast und
 Navigation; sie ist keine zweite globale Palette.
 
@@ -64,7 +70,7 @@ Der Fließtext hat 16px bei 1,5 Zeilenhöhe. Die Basis-Skala enthält 12px
 `src/styles/public/page-headings.css` responsiv von 30px bis 64px. Kleinere
 Navigations- und Metadatenbeschriftungen sowie einzelne große Zahlen sind
 bewusste komponentenspezifische Ausnahmen. Auf Seitenüberschriften markiert
-ein roter Schlusspunkt die redaktionelle Handschrift.
+ein indigofarbener Schlusspunkt die redaktionelle Handschrift.
 
 Die Schriftmerkmale `calt`, `kern`, `liga` und `ss01` sind am Body aktiv.
 Icons kommen aus `src/components/Icon.astro` als SVGs. Die meisten sind
@@ -139,8 +145,8 @@ größeres Bildfeld. Der Bildbeschnitt und die Anordnung passen sich auf
 schmalen Viewports an. Stimmen und Kommentare stehen auf der Artikelseite,
 nicht auf den Karten der Startseite.
 
-Der rote Akzent kennzeichnet Links, wichtige Aktionen und aktive Zustände.
-Gefüllte rote Aktionen dürfen innerhalb eines klaren Handlungsbereichs
+Der Indigo-Akzent kennzeichnet Links, wichtige Aktionen und aktive Zustände.
+Gefüllte Akzent-Aktionen dürfen innerhalb eines klaren Handlungsbereichs
 auftreten; die Zahl pro Viewport ist keine feste Regel. Kategorien, Badges und
 Metadaten bleiben zurückhaltend. Text, Rahmen und Flächen verwenden die
 jeweiligen Theme-Tokens. Die Sidebar hat eigene Farben, um Navigation und

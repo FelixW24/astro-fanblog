@@ -206,7 +206,7 @@ export function renderNewArticleMail(
                   text-align: left;
                 "
               >
-                Astro Fanblog<span style="color: #d20a0a">.</span>
+                Astro Fanblog<span style="color: #006284">.</span>
                 <span
                   style="
                     display: block;
@@ -270,7 +270,7 @@ export function renderNewArticleMail(
                   style="margin: 0 0 24px"
                 >
                   <tr>
-                    <td style="background: #d20a0a; border-radius: 10px">
+                    <td style="background: #006284; border-radius: 10px">
                       <a
                         href="${escapeHtml(url)}"
                         style="
@@ -297,7 +297,7 @@ export function renderNewArticleMail(
                   Du erhältst diese E-Mail, weil du die Benachrichtigung für
                   die Kategorie „${escapeHtml(label)}“ in deinen
                   Profileinstellungen aktiviert hast.
-                  ${unsubscribe ? `<a href="${escapeHtml(unsubscribe)}" style="color: #d20a0a">Benachrichtigung für „${escapeHtml(label)}“ abbestellen</a> · ` : ''}<a href="${escapeHtml(settingsUrl)}" style="color: #d20a0a">Einstellungen im Profil</a>
+                  ${unsubscribe ? `<a href="${escapeHtml(unsubscribe)}" style="color: #006284">Benachrichtigung für „${escapeHtml(label)}“ abbestellen</a> · ` : ''}<a href="${escapeHtml(settingsUrl)}" style="color: #006284">Einstellungen im Profil</a>
                 </p>
               </td>
             </tr>

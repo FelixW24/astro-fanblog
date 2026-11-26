@@ -21,6 +21,24 @@
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node-%3E%3D22.23.4-339933?logo=node.js&amp;logoColor=white" alt="Node.js &gt;= 22.23.4" /></a>
 </p>
 
+## Brand colors
+
+The UI uses a neutral palette — deliberately away from club colors like
+red-and-white — inspired by the traditional Japanese colors on
+[nipponcolors.com](https://nipponcolors.com). Tokens live in
+[`src/styles/tokens.css`](src/styles/tokens.css) (see
+[`design.md`](design.md)):
+
+| Swatch | Nippon color | Hex | Role |
+| ------ | ------------ | --- | ---- |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#006284;border:1px solid rgb(0 0 0 / 15%)"></span> | 縹 Hanada | `#006284` | accent (light mode) |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#113285;border:1px solid rgb(0 0 0 / 15%)"></span> | 紺青 Konjō | `#113285` | accent hover (light mode) |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#2ea9df;border:1px solid rgb(0 0 0 / 15%)"></span> | 露草 Tsuyukusa | `#2ea9df` | accent (dark mode) |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#58b2dc;border:1px solid rgb(0 0 0 / 15%)"></span> | 空 Sora | `#58b2dc` | accent hover (dark mode) |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#a5dee4;border:1px solid rgb(0 0 0 / 15%)"></span> | 瓶覗 Kamenozoki | `#a5dee4` | text selection (light) |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#566c73;border:1px solid rgb(255 255 255 / 15%)"></span> | 藍鼠 Ainezumi | `#566c73` | text selection (dark) |
+| <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#1c1c1c;border:1px solid rgb(0 0 0 / 15%)"></span> | 墨 Sumi | `#1c1c1c` | ink (near-black) |
+
 ## About
 
 Astro Fanblog is a neutral, fully self-hostable fan blog platform: an editorial
@@ -212,12 +230,13 @@ SITE_ORIGIN=https://your-domain.example npm start   # runs node server.mjs
 
 ## Documentation
 
-| Document                        | Contents                                          |
-| ------------------------------- | ------------------------------------------------- |
-| [`AGENTS.md`](AGENTS.md)        | repository guidelines (structure, style, tests)   |
-| [`design.md`](design.md)        | design system and theming tokens                  |
-| [`.env.example`](.env.example)  | full configuration reference with comments        |
-| [`LICENSE`](LICENSE)            | MIT license                                       |
+| Document                                | Contents                                          |
+| --------------------------------------- | ------------------------------------------------- |
+| [`docs/uebersicht.md`](docs/uebersicht.md) | simple project overview (German, no secrets)   |
+| [`AGENTS.md`](AGENTS.md)                | repository guidelines (structure, style, tests)   |
+| [`design.md`](design.md)                | design system and theming tokens                  |
+| [`.env.example`](.env.example)          | full configuration reference with comments        |
+| [`LICENSE`](LICENSE)                    | MIT license                                       |
 
 ## Contributing
 

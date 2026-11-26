@@ -2,8 +2,8 @@
 
 :root {
   color-scheme: light;
-  --color-blueprint-blue: #d20a0a;
-  --color-blueprint-blue-dark: #a80707;
+  --color-blueprint-blue: #006284;
+  --color-blueprint-blue-dark: #113285;
   --color-ink-black: #151719;
   --color-carbon: #151719;
   --color-slate: #62676b;
@@ -13,13 +13,13 @@
   --color-canvas: #f7f7f5;
   --color-mint: #62676b;
   --color-green: #1f8a3b;
-  --color-highlight: #f2d5d5;
+  --color-highlight: #a5dee4;
   --grade-excellent: #14532d;
   --grade-good: #43a047;
   --grade-neutral: #62676b;
   --grade-warn: #e8890c;
-  --grade-poor: #e05d5d;
-  --grade-bad: #a80707;
+  --grade-poor: #787d7b;
+  --grade-bad: #4f4f48;
   --font-ranade:
     'Ranade', 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -91,8 +91,8 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --color-blueprint-blue: #e30613;
-  --color-blueprint-blue-dark: #ff3038;
+  --color-blueprint-blue: #2ea9df;
+  --color-blueprint-blue-dark: #58b2dc;
   --color-ink-black: #f4f4f2;
   --color-carbon: #f4f4f2;
   --color-slate: #a8adb2;
@@ -102,13 +102,13 @@
   --color-canvas: #0e1012;
   --color-mint: #a8adb2;
   --color-green: #4cc26a;
-  --color-highlight: #3a191c;
+  --color-highlight: #566c73;
   --grade-excellent: #4cc26a;
   --grade-good: #8ce0a4;
   --grade-neutral: #a8adb2;
   --grade-warn: #f5a524;
-  --grade-poor: #ff8a80;
-  --grade-bad: #ff3038;
+  --grade-poor: #91989f;
+  --grade-bad: #bdc0ba;
   --shadow-floating: 0 12px 32px rgb(0 0 0 / 28%);
   --shadow-category: 0 2px 8px rgb(0 0 0 / 18%), 0 12px 32px rgb(0 0 0 / 22%);
   --shadow-category-hover:
@@ -122,8 +122,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --color-blueprint-blue: #e30613;
-    --color-blueprint-blue-dark: #ff3038;
+    --color-blueprint-blue: #2ea9df;
+    --color-blueprint-blue-dark: #58b2dc;
     --color-ink-black: #f4f4f2;
     --color-carbon: #f4f4f2;
     --color-slate: #a8adb2;
@@ -133,13 +133,13 @@
     --color-canvas: #0e1012;
     --color-mint: #a8adb2;
     --color-green: #4cc26a;
-    --color-highlight: #3a191c;
+    --color-highlight: #566c73;
     --grade-excellent: #4cc26a;
     --grade-good: #8ce0a4;
     --grade-neutral: #a8adb2;
     --grade-warn: #f5a524;
-    --grade-poor: #ff8a80;
-    --grade-bad: #ff3038;
+    --grade-poor: #91989f;
+    --grade-bad: #bdc0ba;
     --shadow-floating: 0 12px 32px rgb(0 0 0 / 28%);
     --shadow-category: 0 2px 8px rgb(0 0 0 / 18%), 0 12px 32px rgb(0 0 0 / 22%);
     --shadow-category-hover:

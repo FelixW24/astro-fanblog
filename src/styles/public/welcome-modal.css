@@ -87,7 +87,7 @@ html:has(dialog.welcome-modal[open]) {
 }
 .welcome-modal__signup.is-active .welcome-modal__signup-icon,
 .welcome-modal__signup.is-active .welcome-modal__signup-chevron {
-  color: var(--color-red, #d20a0a);
+  color: var(--color-red, #006284);
 }
 .welcome-modal__signup-label {
   flex: 1 1 auto;
@@ -158,7 +158,7 @@ html:has(dialog.welcome-modal[open]) {
 }
 .welcome-modal__error {
   margin: 0;
-  color: var(--color-red, #d20a0a);
+  color: var(--color-red, #006284);
   font-size: 14px;
 }
 .welcome-modal__status {
