@@ -365,7 +365,7 @@ test('Leserkonto: Registrierung, Sitzung, Kommentare, Antworten und Stimmen', as
   });
   await expect(notice).toBeVisible();
   await expect(notice.getByRole('status')).toHaveText(
-    'Melde dich an oder erstelle ein Konto, um mitzumachen.',
+    'Melde dich an oder erstelle ein Konto, um Kommentare zu schreiben und zu bewerten.',
   );
   await expect(guestComment).toContainText('Gefällt mir · 0');
   await notice.getByRole('button', { name: 'Hinweis schließen' }).click();

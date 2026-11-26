@@ -153,7 +153,7 @@ export function renderNewArticleMail(
     'Dein Astro Fanblog-Team',
     '',
     '—',
-    'Astro Fanblog · Unabhängiger Fanblog rund um den FC Example',
+    'Astro Fanblog · Ehrlicher Fanblog rund um den FC Example',
     `Impressum: ${new URL('/impressum', origin)}`,
     `Datenschutz: ${new URL('/datenschutz', origin)}`,
     `AGB: ${new URL('/agb', origin)}`,
@@ -311,7 +311,7 @@ export function renderNewArticleMail(
                   text-align: left;
                 "
               >
-                Astro Fanblog · Unabhängiger Fanblog rund um den FC Example<br />
+                Astro Fanblog · Ehrlicher Fanblog rund um den FC Example<br />
                 <a href="${escapeHtml(new URL('/impressum', origin).toString())}" style="color: #62676b">Impressum</a>
                 ·
                 <a href="${escapeHtml(new URL('/datenschutz', origin).toString())}" style="color: #62676b">Datenschutz</a>

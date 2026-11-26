@@ -17,12 +17,12 @@ try {
 
 <BaseLayout
   title="Astro Fanblog – Analysen, News und Geschichten zum FC Example"
-  description="Analysen, Spielberichte, News, PK-Zusammenfassungen und Kaderblicke rund um den FC Example – unabhängig und immer aus Fansicht."
+  description="Analysen, Spielberichte, News, PK-Zusammenfassungen und Kaderblicke rund um den FC Example – ehrlich, unabhängig und ohne Vereinsbrille."
 >
   <header class="page-hero page-hero--home shell">
     <div class="home-hero">
       <div class="home-hero__main">
-        <PageHeading>Willkommen im Fanblog</PageHeading>
+        <PageHeading>Fußball, wie er wirklich ist.</PageHeading>
         {
           !backendAvailable ? (
             <EmptyState
@@ -48,8 +48,8 @@ try {
     <div class="shell">
       <div class="section-heading section-heading--light">
         <div>
-          <span class="overline">Unser Spielfeld</span><h2>
-            Fünf Rubriken. Eine Perspektive.
+          <span class="overline">Die Rubriken</span><h2>
+            Fünf Rubriken. Klarer Blick.
           </h2>
         </div>
       </div>
@@ -65,11 +65,11 @@ try {
               <p>
                 {
                   [
-                    'Taktik, Wendepunkte und das Spiel hinter dem Ergebnis.',
-                    'Was passiert – kurz, geprüft und sinnvoll eingeordnet.',
-                    'Die wichtigsten Aussagen, ohne eine halbe Stunde Video.',
-                    'Gerüchte trennen, Profile prüfen, Kaderfolgen erklären.',
-                    'Kultur, Fans, Stadionatmosphäre und alles neben dem Rasen.',
+                    'Was im Spiel wirklich passiert ist — verständlich aufgedröselt.',
+                    'Meldungen, die wir prüfen, bevor wir sie einordnen.',
+                    'Die Kernaussagen der PK — auf den Punkt gebracht.',
+                    'Was an Gerüchten dran ist — und was der Kader wirklich braucht.',
+                    'Stadion, Fanszene und alles, was neben dem Platz passiert.',
                   ][index]
                 }
               </p>
@@ -83,12 +83,12 @@ try {
   <section class="squad-teaser shell">
     <div class="section-heading">
       <div>
-        <span class="overline">Unser Team</span><h2>Mannschaft im Blick.</h2>
+        <span class="overline">Kader &amp; Leihen</span><h2>Wer ist im Kader?</h2>
       </div>
     </div>
     <div class="squad-board">
-      <span class="board-label">Mannschaft 26/27</span>
-      <h3>Wer steht wo?<br />Und wer ist gerade unterwegs?</h3>
+      <span class="board-label">Kader 26/27</span>
+      <h3>Alle Profis im Überblick.<br />Dazu die aktuellen Leihen.</h3>
       <div class="board-actions">
         <a class="button" href="/kader">Zum Kader</a>
         <a class="text-link" href="/leihspieler">Leihspieler ansehen →</a>

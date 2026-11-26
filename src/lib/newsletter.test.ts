@@ -299,9 +299,9 @@ describe('mapSettingsRow / defaults', () => {
     });
   });
 
-  it('Defaults nennen das Studentenprojekt und den Aufbau', () => {
+  it('Defaults nennen das offene Projekt und den Aufbau', () => {
     const defaults = defaultNewsletterSettings();
-    expect(defaults.intro).toContain('Studentenprojekt');
+    expect(defaults.intro).toContain('offenes Fanblog-Projekt');
     expect(defaults.intro).toContain('Aufbau');
     // Auf Wunsch ohne Namensnennung und Unabhängigkeits-Label im Modal.
     expect(defaults.intro).not.toContain('Max Mustermann');

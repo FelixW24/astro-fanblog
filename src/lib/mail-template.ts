@@ -18,7 +18,7 @@ export function mailFooter(origin: string): { text: string; html: string } {
   return {
     text: [
       '—',
-      'Astro Fanblog · Unabhängiger Fanblog rund um den FC Example',
+      'Astro Fanblog · Ehrlicher Fanblog rund um den FC Example',
       `Impressum: ${impressum}`,
       `Datenschutz: ${datenschutz}`,
       `AGB: ${agb}`,
@@ -34,7 +34,7 @@ export function mailFooter(origin: string): { text: string; html: string } {
                   text-align: left;
                 "
               >
-                Astro Fanblog · Unabhängiger Fanblog rund um den FC Example<br />
+                Astro Fanblog · Ehrlicher Fanblog rund um den FC Example<br />
                 <a href="${escapeHtml(impressum)}" style="color: #62676b">Impressum</a>
                 ·
                 <a href="${escapeHtml(datenschutz)}" style="color: #62676b">Datenschutz</a>

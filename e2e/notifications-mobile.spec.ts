@@ -37,7 +37,7 @@ for (const theme of ['light', 'dark']) {
       await expect(notice).toHaveCSS('border-left-width', '1px');
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await expect(notice.getByRole('status')).toHaveText(
-        'Melde dich an oder erstelle ein Konto, um mitzumachen.',
+        'Melde dich an oder erstelle ein Konto, um Kommentare zu schreiben und zu bewerten.',
       );
       const bounds = await notice.boundingBox();
       const header = await page.locator('.site-header').boundingBox();

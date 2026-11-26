@@ -2,7 +2,7 @@
 
 > Open-source blog software for football fan communities — news, match
 > reports, squad, loans, schedule and community features, built with Astro
-> and Supabase. Independent, critical, always from the fans' perspective.
+> and Supabase. Independent and fan-run — no club colours, written by fans.
 
 ## Pages
 

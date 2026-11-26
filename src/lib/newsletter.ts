@@ -57,9 +57,9 @@ export function defaultNewsletterSettings(): NewsletterSettings {
   return {
     modalEnabled: true,
     newsletterEnabled: true,
-    heading: 'Willkommen auf Astro Fanblog!',
+    heading: 'Hallo vom Astro Fanblog!',
     intro:
-      'Schön, dass du hier bist! Astro Fanblog ist ein Studentenprojekt rund um den FC Example.\n\nWir stecken noch mitten im Aufbau – deshalb kann es passieren, dass mal etwas nicht funktioniert oder Inhalte fehlen. Danke für dein Verständnis! Wenn dir etwas auffällt, melde es uns gerne über „Fehler melden“ im Footer.',
+      'Astro Fanblog ist ein offenes Fanblog-Projekt rund um den FC Example — von Fans geschrieben, für Fans gemacht.\n\nManches ist noch im Aufbau, deshalb kann gelegentlich etwas fehlen oder haken. Danke für dein Verständnis! Wenn dir etwas auffällt, melde es uns gerne über „Fehler melden“ im Footer.',
     emailLabel: 'E-Mail-Adresse für unseren Newsletter',
     emailPlaceholder: 'du@beispiel.de',
     submitLabel: 'Newsletter abonnieren',
